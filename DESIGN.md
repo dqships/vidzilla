@@ -64,6 +64,11 @@ A logo-modernism mark: constructed from two geometric figures, no drawing.
 - **Colour.** Vermilion on paper (`mark.svg`, `lockup.svg`), bright vermilion on
   the darkroom (`mark-dark.svg`, `lockup-dark.svg`), or ink when only one colour
   is possible (`mark-ink.svg`). App icon: bright vermilion mark on a film tile.
+- **Site icons.** The website's favicon set is the app icon, made by
+  `scripts/make-brand.mjs`: `favicon.ico` (16, 32 and 48 px, each drawn at its
+  size), `favicon.svg`, `app-icon-48/96/192/512.png`, and
+  `apple-touch-icon.png` (180 px, square tile, since iOS rounds it). The site
+  build copies `favicon.ico` and `apple-touch-icon.png` to the root.
 - **Clear space** equals the rhombus height on all sides. Minimum size 16 px
   for the mark, 96 px wide for the lockup.
 - Never redraw, outline, rotate, add effects to, or recolour the mark outside

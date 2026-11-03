@@ -185,6 +185,8 @@ const styles = [read("design/tokens.css").replaceAll("url(\"fonts/", "url(\"/des
 writeFileSync(new URL("styles.css", out), await minify(styles.join("\n"), "css"));
 for (const dir of ["design", "brand"]) cpSync(new URL(dir, root), new URL(dir, out), { recursive: true });
 rmSync(new URL("brand/source", out), { recursive: true, force: true });
+// Browsers and search engines ask for these at the root before reading any page.
+for (const f of ["favicon.ico", "apple-touch-icon.png"]) cpSync(new URL(`brand/${f}`, root), new URL(f, out));
 // The extension's house ad list (docs/house-ads.md), and any icons it uses.
 cpSync(new URL("site/ads.json", root), new URL("ads.json", out));
 if (existsSync(new URL("site/ads/", root))) cpSync(new URL("site/ads/", root), new URL("ads/", out), { recursive: true });

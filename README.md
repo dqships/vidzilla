@@ -150,7 +150,9 @@ extension's reload button.
 - **Site launch setup** (`site/pages.mjs`, `scripts/build-site.mjs`,
   `middleware.js`, `vercel.json`): the build adds each page's canonical, Open
   Graph, Twitter and JSON-LD tags and the shared header and footer
-  (`site/partials/`), writes `robots.txt`, `sitemap.xml` and `llms.txt`, and
+  (`site/partials/`, including the favicon links), writes `robots.txt`,
+  `sitemap.xml` and `llms.txt`, puts `favicon.ico` and `apple-touch-icon.png`
+  at the root, and
   copies each page's markdown twin (`site/md/`). It fails if a title isn't
   30–60 characters, a description isn't 120–160, a page has other than one
   `<h1>`, or an inline script isn't allowed by the CSP in `vercel.json`.

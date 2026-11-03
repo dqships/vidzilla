@@ -174,6 +174,26 @@ test("pages load with no console errors or CSP violations", async () => {
   await page.close();
 });
 
+test("the favicon set is served at the root and linked from every page", async () => {
+  for (const [path, type] of [["/favicon.ico", "image/x-icon"], ["/apple-touch-icon.png", "image/png"]]) {
+    const res = await get(path);
+    assert.equal(res.status, 200, path);
+    assert.equal(res.headers.get("content-type"), type, path);
+  }
+  const html = await (await get("/")).text();
+  const links = [...html.matchAll(/<link rel="(?:icon|apple-touch-icon)"[^>]*>/g)].map(([tag]) => tag);
+  assert.ok(links.some((l) => /href="\/favicon\.ico" sizes="48x48"/.test(l)), "favicon.ico at 48x48");
+  assert.ok(links.some((l) => /href="\/brand\/favicon\.svg" type="image\/svg\+xml"/.test(l)), "SVG icon");
+  for (const size of [96, 192]) assert.ok(links.some((l) => l.includes(`app-icon-${size}.png" type="image/png" sizes="${size}x${size}"`)), `${size} px icon`);
+  assert.ok(links.some((l) => /rel="apple-touch-icon" href="\/brand\/apple-touch-icon\.png" sizes="180x180"/.test(l)), "apple touch icon");
+  for (const link of links) {
+    const href = attr(link, /href="([^"]+)"/);
+    const res = await get(href);
+    assert.equal(res.status, 200, href);
+    assert.match(res.headers.get("content-type"), /^image\//, href);
+  }
+});
+
 test("the pricing page shows a running launch offer without a subscription price", async () => {
   const page = await browser.newPage();
   const publicPromo = {

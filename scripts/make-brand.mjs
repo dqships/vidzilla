@@ -68,7 +68,7 @@ function symbols() {
   );
 }
 
-function appIcon(size, { tile = FILM, color = VERMILION_DARK } = {}) {
+function appIcon(size, { tile = FILM, color = VERMILION_DARK, square = false } = {}) {
   // Small sizes open the cut so it survives the pixel grid.
   const g = size <= 16 ? 9 : size <= 32 ? 7 : 5;
   const m = markPaths({ a: 12, g });
@@ -78,7 +78,7 @@ function appIcon(size, { tile = FILM, color = VERMILION_DARK } = {}) {
   const radius = size <= 16 ? 18 : 22;
   return svg(
     "0 0 96 96",
-    `<rect width="96" height="96" rx="${radius}" fill="${tile}"/>` +
+    `<rect width="96" height="96" rx="${square ? 0 : radius}" fill="${tile}"/>` +
       `<g transform="translate(${pad} ${r(ty)}) scale(${r(scale)}) translate(${-m.box.x} ${-m.box.y})"><path fill="${color}" d="${m.v}${m.drop}"/></g>`,
     "Vidzilla",
   );
@@ -98,6 +98,26 @@ function toolbarIcon(size) {
   );
 }
 
+/** An ICO file holding PNG images: a 6-byte header, a 16-byte entry per image, then the images. */
+function icoFile(images) {
+  const header = Buffer.alloc(6 + 16 * images.length);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2); // 1 = icon
+  header.writeUInt16LE(images.length, 4);
+  let offset = header.length;
+  images.forEach(({ size, data }, i) => {
+    const e = 6 + 16 * i;
+    header.writeUInt8(size >= 256 ? 0 : size, e);
+    header.writeUInt8(size >= 256 ? 0 : size, e + 1);
+    header.writeUInt16LE(1, e + 4); // colour planes
+    header.writeUInt16LE(32, e + 6); // bits per pixel
+    header.writeUInt32LE(data.length, e + 8);
+    header.writeUInt32LE(offset, e + 12);
+    offset += data.length;
+  });
+  return Buffer.concat([header, ...images.map((image) => image.data)]);
+}
+
 const out = new URL("../brand/", import.meta.url);
 mkdirSync(out, { recursive: true });
 const files = {
@@ -114,7 +134,8 @@ const files = {
 };
 for (const [name, body] of Object.entries(files)) writeFileSync(new URL(name, out), body);
 
-// PNG exports: toolbar icons (transparent) and app icon tiles.
+// PNG exports: toolbar icons (transparent), app icon tiles and the site's
+// favicon set (favicon.ico, 48/96/192/512 px tiles, apple-touch-icon.png).
 const require = createRequire(import.meta.url);
 let chromium;
 try {
@@ -136,6 +157,20 @@ for (const size of [16, 32, 48, 128]) {
   await png(`icon-${size}.png`, toolbarIcon(size), size);
   await png(`app-icon-${size}.png`, appIcon(size), size);
 }
-await png("app-icon-512.png", appIcon(512), 512);
+for (const size of [96, 192, 512]) await png(`app-icon-${size}.png`, appIcon(size), size);
+// Apple touch icon: a full square tile, since iOS rounds the corners itself.
+await png("apple-touch-icon.png", appIcon(180, { square: true }), 180);
+
+// favicon.ico for the site root: the app icon at 16, 32 and 48 px, each drawn
+// at its own size (the cut opens at small sizes), stored as PNG images.
+const ico = [];
+for (const size of [16, 32, 48]) {
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(
+    `<html><body style="margin:0;background:transparent">${appIcon(size).replace("<svg ", `<svg width="${size}" height="${size}" `)}</body></html>`,
+  );
+  ico.push({ size, data: await page.screenshot({ omitBackground: true }) });
+}
+writeFileSync(new URL("favicon.ico", out), icoFile(ico));
 await browser.close();
 console.log("brand/ written");

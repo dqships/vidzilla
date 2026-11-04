@@ -10,10 +10,10 @@ const icon = (name) => `<svg aria-hidden="true"><use href="${ICONS}#i-${name}"/>
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
-/* Release state: store links and format status come from release.js. ---- */
+/* Release state: format status comes from release.js. Store links go to
+   /go/chrome-web-store (api/store-link.js), which reads the listing from it. */
 
 function setupRelease() {
-  for (const a of document.querySelectorAll("[data-store-link]")) a.href = release.storeUrl;
   for (const frame of document.querySelectorAll(".reel-frame[data-format]")) {
     const status = release.formats[frame.dataset.format] ?? "coming";
     frame.querySelector("[data-status]").textContent = statusLabel[status];

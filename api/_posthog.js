@@ -1,9 +1,12 @@
-// Product analytics, server side: the `paid` event for an install's first
-// purchase, sent to PostHog's capture API with fetch (no SDK, no secret: the
-// project key can only send events). The extension sends the only other
-// event, `activated` (src/sw/analytics.ts). Both use the install ID as the
-// person, so a purchase joins the copy that made it.
+// Product analytics, server side: `checkout_started` when an install opens a
+// Stripe checkout and `paid` for its first purchase, sent to PostHog's
+// capture API with fetch (no SDK, no secret: the project key can only send
+// events). The extension sends `signed_up` and `activated`
+// (src/sw/analytics.ts). All four use the install ID as the person, so a
+// purchase joins the copy that made it. The website's anonymous page views
+// and store clicks use capture() too (api/_web-analytics.js).
 import { createHash } from "node:crypto";
+import { majorUnits } from "./_stripe.js";
 
 export const POSTHOG_HOST = process.env.POSTHOG_HOST || "https://us.i.posthog.com";
 /** Vidzilla's PostHog project (708991). Publishable, like the one in the extension. */
@@ -36,6 +39,32 @@ export function paidEvent(installId, sale) {
       // Sent from Vercel: its address says nothing about where the buyer is.
       $geoip_disable: true,
       ...(sale.email ? { $set: { email: sale.email } } : {}),
+    },
+  };
+}
+
+/**
+ * `checkout_started` for a Checkout Session api/checkout.js made: the plan,
+ * the install's price group, the launch code applied (if any), and what the
+ * checkout will charge in major units, discounts included, when Stripe says.
+ */
+export function checkoutStartedEvent(installId, { session, plan, variant, promoCode }) {
+  const currency = typeof session.currency === "string" ? session.currency.toLowerCase() : undefined;
+  const amount = typeof session.amount_total === "number" && currency ? majorUnits(session.amount_total, currency) : undefined;
+  return {
+    api_key: POSTHOG_KEY,
+    event: "checkout_started",
+    distinct_id: installId,
+    ...(session.id ? { uuid: stableUuid(`checkout_started:${session.id}`) } : {}),
+    ...(typeof session.created === "number" ? { timestamp: new Date(session.created * 1000).toISOString() } : {}),
+    properties: {
+      product: "vidzilla",
+      plan,
+      ...(variant ? { variant } : {}),
+      ...(promoCode ? { promo_code: promoCode } : {}),
+      ...(amount !== undefined ? { amount, currency } : {}),
+      // Sent from Vercel: its address says nothing about where the buyer is.
+      $geoip_disable: true,
     },
   };
 }

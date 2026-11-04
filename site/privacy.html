@@ -6,7 +6,7 @@
     <title>Vidzilla privacy policy: what the extension reads</title>
     <meta
       name="description"
-      content="What the Vidzilla Chrome extension reads, keeps on your computer and sends: no accounts, one usage event to PostHog, and never the pages you visit."
+      content="What the Vidzilla Chrome extension reads, keeps on your computer and sends: no accounts, two one-time events to PostHog, and never the pages you visit."
     />
     <!-- vz:meta -->
     <!-- vz:assets -->
@@ -22,8 +22,9 @@
         Vidzilla is a Chrome extension that finds the video and audio a page plays and saves it to your computer. It has
         no accounts. It doesn't sell your personal information, and it contains no third-party ad code. When it's installed, and the first time
         it saves a file, it reports each of those once to PostHog, our product analytics service, and if you buy the ad-free
-        upgrade our server reports the purchase there too (see <a href="#analytics">Product analytics</a>). Every few
-        downloads it shows a short ad for another app by the same maker.
+        upgrade our server reports the checkout and the purchase there too (see <a href="#analytics">Product analytics</a>).
+        Our website counts page views and clicks on its Add to Chrome buttons there anonymously, without cookies (see
+        <a href="#website">Our website</a>). Every few downloads it shows a short ad for another app by the same maker.
       </p>
 
       <h2 class="prose-head">What Vidzilla reads</h2>
@@ -87,7 +88,10 @@
         payment and send your receipt, under <a href="https://stripe.com/privacy">Stripe's privacy policy</a>; we never
         see your card number. Stripe keeps the purchase with your install ID attached, which is how Vidzilla knows to
         stop the ads. We see the purchase in our Stripe account (email, plan, amount, date) and use it only for
-        receipts, refunds and support. When the thanks page confirms your first purchase, our server also reports it to
+        receipts, refunds and support. When you choose a plan and our server opens Stripe's checkout for you, it reports
+        that to PostHog as one "checkout_started" event: the install ID, the plan, your copy's price group, the launch
+        code applied if there is one, and the amount and currency the checkout will charge. It carries no email or card
+        details. When the thanks page confirms your first purchase, our server also reports it to
         PostHog as one "paid" event: the install ID, the plan, the amount and currency, and the email address you gave
         Stripe.
       </p>
@@ -96,22 +100,36 @@
       <p>
         We use <a href="https://posthog.com/privacy">PostHog</a> to count how many copies get installed, how many
         get Vidzilla working and how many go on to pay, so we can improve it and contact buyers about their purchase. PostHog stores this for us as
-        our processor, on its US servers (PostHog Cloud US), and doesn't use it for its own purposes. It receives only
-        the three events above: "signed_up" and "activated" from the extension, and "paid" from our server, all filed under your copy's
-        install ID, with your email added only if you buy. Nothing else is reported: not the pages you visit, the media
+        our processor, on its US servers (PostHog Cloud US), and doesn't use it for its own purposes. Under your copy's
+        install ID it receives only the four events above: "signed_up" and "activated" from the extension, and
+        "checkout_started" and "paid" from our server, with your email added only if you buy. Separately, our website
+        sends it anonymous page views and Add to Chrome clicks, with no install ID (see <a href="#website">Our
+        website</a>). Nothing else is reported: not the pages you visit, the media
         Vidzilla finds or saves, or how you use it. Like any web request, the extension's two requests reach PostHog from your IP address; PostHog
         discards the address instead of storing it, and we don't have it look up your location. To
         have this data deleted, write to <a href="mailto:support@followusai.com">support@followusai.com</a> with your
         install ID or purchase email.
       </p>
 
-      <h2 class="prose-head">Our website</h2>
+      <h2 class="prose-head" id="website">Our website</h2>
       <p>
         The website, vidzilla.followusai.com, uses Vercel Web Analytics to count visits. It sets no cookies. For each
         page view it records the page address, the referring site, your country, and your browser, operating system
         and device type. It tells visits apart with a daily hash of your IP address and browser that isn't stored and
         can't be used to identify you. Vercel, our host, processes this for us. It covers the website only: the
         extension sends nothing to it.
+      </p>
+      <p>
+        Our server also reports each page view to PostHog, and each click on an Add to Chrome button, which passes
+        through vidzilla.followusai.com/go/chrome-web-store on its way to the Chrome Web Store, so we can see which pages lead people to install Vidzilla. The pages load no
+        PostHog script, and the site still sets no cookies. Each report holds the page address (without its query,
+        apart from utm campaign tags), the referring site, which button was clicked, and your browser's user agent, from
+        which PostHog works out the browser, operating system and device type. Visits are told apart by a hash of your
+        IP address and browser that changes every day; your IP address itself isn't sent or stored, PostHog discards
+        the address the report comes from (our server's), and no location is looked up. These reports carry no install
+        ID or email, make no profile of you, and aren't linked to the extension's events. Crawlers and link previews
+        aren't counted. The store link adds utm_source=vidzilla.followusai.com and utm_medium=website to the store's
+        address, so the Chrome Web Store's own statistics show that the visit came from our site.
       </p>
 
       <h2 class="prose-head">Why it asks for its permissions</h2>

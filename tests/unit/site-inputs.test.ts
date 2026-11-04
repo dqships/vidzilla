@@ -8,7 +8,7 @@ const root = new URL("../../", import.meta.url);
 describe("site inputs", () => {
   it("covers every repo file the site's bundles and Vercel functions read", async () => {
     const result = await esbuild.build({
-      entryPoints: [...Object.values(bundleEntries as Record<string, string>), "middleware.js", "api/checkout.js", "api/license.js"],
+      entryPoints: [...Object.values(bundleEntries as Record<string, string>), "middleware.js", "api/checkout.js", "api/license.js", "api/store-link.js"],
       absWorkingDir: new URL(".", root).pathname,
       bundle: true,
       write: false,

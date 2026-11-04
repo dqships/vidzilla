@@ -136,12 +136,18 @@ extension's reload button.
   page), and Saved files lists what Vidzilla saved (show in folder, open the
   page it came from) inside the popup or side panel. History lives in
   `chrome.storage.local`, capped at 300 entries.
-- **Product analytics** (`src/sw/analytics.ts`, `api/_posthog.js`): three
+- **Product analytics** (`src/sw/analytics.ts`, `api/_posthog.js`): four
   PostHog events, under the random install ID. The service worker sends
   `signed_up` once, when the extension is installed (Vidzilla has no
   accounts), and `activated` once, on an install's first saved file, with `fetch` (no
-  PostHog script, which Manifest V3 wouldn't allow); the license API sends
-  `paid` for a first purchase. Nothing about pages or files is reported. See
+  PostHog script, which Manifest V3 wouldn't allow); the checkout API sends
+  `checkout_started` when Stripe opens a checkout, and the license API sends
+  `paid` for a first purchase. Nothing about pages or files is reported.
+  The website adds anonymous `$pageview`s (from `middleware.js`) and
+  `store_link_clicked` (every "Add to Chrome" link goes through
+  `/go/chrome-web-store`, `api/store-link.js`, a 302 to the store), sent by
+  the server under a daily hash, so the site still has no PostHog script and
+  no cookies (`api/_web-analytics.js`). See
   [docs/ad-free-upgrade.md](docs/ad-free-upgrade.md#analytics).
 - **Popup** (`src/ui/`): reads storage and sends commands. It holds no state of
   its own. It is built from the shared Vidzilla design system (`design/`,
@@ -164,8 +170,10 @@ extension's reload button.
   30–60 characters, a description isn't 120–160, a page has other than one
   `<h1>`, or an inline script isn't allowed by the CSP in `vercel.json`.
   `vercel.json` sets the security headers (HSTS, CSP, X-Frame-Options and
-  friends) and `Vary: Accept`; `middleware.js` answers `Accept: text/markdown`
-  with the page's markdown at the same URL, or a markdown 404. Missing pages get
+  friends) and `Vary: Accept`, and rewrites `/go/chrome-web-store` to the
+  store link function; `middleware.js` answers `Accept: text/markdown`
+  with the page's markdown at the same URL, or a markdown 404, and reports
+  page views. Missing pages get
   `404.html` with a real 404 status. The domain lives in `site/pages.mjs`
   (`origin`); `brand/og-image.png` is made by `pnpm og`.
 - **Vercel deploys only for website changes** (`scripts/vercel-ignore.mjs`,

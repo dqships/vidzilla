@@ -32,7 +32,8 @@ chrome.storage.sync)
   Upstash turned out to be unnecessary.
 - **The install ID** is made with `crypto.randomUUID()` the first time it's
   needed and kept in `chrome.storage.sync`, so it follows the person's Chrome
-  profile to their other computers. It identifies nobody.
+  profile to their other computers. It identifies nobody. It is also the
+  person in product analytics (PostHog), see below.
 - **When the extension checks:** at once when the website's
   `/upgrade-thanks` page opens (the page carries the Checkout Session ID,
   which confirms the purchase without waiting for Stripe's search index),
@@ -206,6 +207,26 @@ too: the kept checkout above keeps it counted.
   subscriptions), so a $0.99 payment keeps about 65¢, $7 keeps about $6.45
   and $9 keeps about $8.44. At $0.99 about a third goes to fees on every
   charge, weekly or yearly; weekly just charges 52 times a year.
+
+## Analytics
+
+Two events go to PostHog (project 708991, US cloud), both with the install ID
+as the person and `product: "vidzilla"`:
+
+- `activated`: the first file an install saves (`Downloads.onSaveChanged` in
+  `src/sw/downloads.ts` calls `noteActivated` in `src/sw/analytics.ts`), sent
+  by the service worker with `fetch`, once per install ID (`activatedAt` in
+  `chrome.storage.sync`, set once PostHog took it). Copies updated from
+  1.0.4 or older that had saved files already are marked without sending.
+- `paid`: a first purchase. The thanks page calls `/api/license` with
+  `confirm=1` (once per browser); when the checkout says yes, the server
+  (`reportSale` in `api/license.js`, `firstSale` in `api/_stripe.js`) sends
+  `paid` with `plan`, `amount` (major units: 9 for $9.00, 0 for a 100% off
+  code), `currency` (lowercase), `variant` and the buyer's email as a person
+  property. Not sent for a checkout over a day old or when the install bought
+  before; renewals never reach it. There's no Stripe webhook.
+
+There is no `signed_up`: Vidzilla has no accounts.
 
 ## Store and policy
 

@@ -18,6 +18,8 @@ import { clearStaleRules } from "./replay";
 import { refreshLicense, refreshLicenseIfStale, watchThanksPage } from "./license";
 import { gateDownload } from "./ads";
 import { watchSidePanelSetting } from "./side-panel";
+import { skipActivationIfSavedBefore } from "./analytics";
+import { loadAsks } from "../shared/asks";
 
 /** Single-page apps swap videos without a page load; look again once they settle. */
 const RESCAN_DELAY_MS = 1500;
@@ -394,4 +396,8 @@ chrome.runtime.onStartup.addListener(() => {
   void clearStaleRules();
   void refreshLicenseIfStale();
 });
-chrome.runtime.onInstalled.addListener(() => void clearStaleRules());
+chrome.runtime.onInstalled.addListener((details) => {
+  void clearStaleRules();
+  // Updated from a version without analytics: files saved before don't make the next one a first.
+  if (details.reason === "update") void loadAsks().then((asks) => skipActivationIfSavedBefore(details.previousVersion, asks.saved)).catch(() => {});
+});

@@ -7,7 +7,7 @@ the website on Vercel. You need Node 22.12 or later and pnpm 10.
 git clone https://github.com/dqships/vidzilla.git
 cd vidzilla
 pnpm install
-pnpm package        # builds and writes release/vidzilla-<version>.zip (1.0.4 now)
+pnpm package        # builds and writes release/vidzilla-<version>.zip (1.0.5 now)
 ```
 
 The images in this folder are ready to upload. `pnpm store-assets` makes them
@@ -49,7 +49,7 @@ curl -sI https://vidzilla.followusai.com/no-such-page    # 404
 ## 2. Submit the extension
 
 In the [developer dashboard](https://chrome.google.com/webstore/devconsole),
-press **New item** and upload `release/vidzilla-1.0.4.zip` (the version in `src/manifest.json`). Then fill in the
+press **New item** and upload `release/vidzilla-1.0.5.zip` (the version in `src/manifest.json`). Then fill in the
 tabs as below.
 
 ### Store listing
@@ -87,10 +87,12 @@ did. Streams are joined into a single file without re-encoding, so quality
 and sound stay exactly as the site sent them.
 
 Private by design
-No accounts, no analytics. Vidzilla talks to the sites that host the media you
-choose to save. It also fetches its short list of ads from
-vidzilla.followusai.com, and after a purchase checks there once a day whether
-this copy still pays to remove them. Nothing about you or your downloads is sent.
+No accounts, and your browsing is never tracked. Vidzilla talks to the sites
+that host the media you choose to save. It also fetches its short list of ads
+from vidzilla.followusai.com, and after a purchase checks there once a day
+whether this copy still pays to remove them. The first time it saves a file it
+tells our analytics (PostHog) so, once, under a random install ID. The pages
+you visit and what you download are never sent.
 
 Free, with an occasional ad
 Vidzilla is free to use. Every few downloads, before the download starts, it
@@ -123,7 +125,7 @@ Please only save media you have the right to keep.
 | `scripting` | Reads the page's title, thumbnail and the media it declares in its markup, to name files and list media the network doesn't show. When a server only answers the page itself, reads the stream's playlist from inside the page. |
 | `offscreen` | Runs the download worker that fetches stream segments and joins them into one file, which a service worker can't do for long downloads. |
 | `sidePanel` | Offers the same media list in Chrome's side panel, for users who want it to stay open while they browse. |
-| `storage` | Keeps the media list, settings and saved-file history on the user's device, and a random install ID and a purchase mark in synced storage; the ad-free check sends the ID to vidzilla.followusai.com. |
+| `storage` | Keeps the media list, settings and saved-file history on the user's device, and a random install ID, a purchase mark and a first-save mark in synced storage; the ad-free check sends the ID to vidzilla.followusai.com, and the one analytics event (below) sends it to PostHog. |
 | `unlimitedStorage` | Large videos are assembled in the extension's private storage before saving, which can exceed the default quota. |
 
 - **In-app purchases:** in the item's Store listing settings, mark that it
@@ -132,13 +134,24 @@ Please only save media you have the right to keep.
 - **Remote code:** No, I am not using remote code.
   (The house ad list, `ads.json` on the website, is text and links only;
   see `docs/house-ads.md`. Reviewers may ask.)
+- **Analytics (from 1.0.5):** the service worker sends PostHog
+  (`https://us.i.posthog.com/i/v0/e/`, with `fetch`, no PostHog script) one
+  event, `activated`, the first time an install saves a file: the random
+  install ID, the extension version and the time, with location lookup
+  turned off. It needs no new permission: `<all_urls>` already covers the
+  request, and the CSP is unchanged. The website's server separately sends
+  `paid` for a first purchase, with the email the buyer gave Stripe; that
+  never passes through the extension.
 - **Data usage:** tick **Web history** (the addresses of pages and media are
-  kept on the device for the media list and history) and **Website content**
-  (page titles and thumbnails). Leave **Financial and payment information**
-  and **Personally identifiable information** unticked: payment happens on
-  Stripe's page, never in the extension, and the install ID is a random
-  number tied to no person. Then tick all three certifications: no sale
-  of data, no use for unrelated purposes, no use for creditworthiness.
+  kept on the device for the media list and history), **Website content**
+  (page titles and thumbnails) and **User activity** (the one first-save
+  event sent to PostHog). Leave **Financial and payment information** and
+  **Personally identifiable information** unticked: payment and the email
+  address happen on Stripe's page, never in the extension, and the install ID
+  is a random number. Leave **Location** unticked too (no location is looked
+  up; turn on "Discard client IP data" in the PostHog project so no IP
+  address is kept either). Then tick all three certifications: no sale of
+  data, no use for unrelated purposes, no use for creditworthiness.
 - **Privacy policy URL:** `https://vidzilla.followusai.com/privacy`
 
 ### Distribution

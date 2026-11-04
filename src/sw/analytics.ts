@@ -1,5 +1,7 @@
-// Product analytics, extension side: one event, `activated`, sent once per
-// install the first time Vidzilla saves a file (a download or a recording
+// Product analytics, extension side: two events, each sent once per install.
+// `signed_up` when Vidzilla is first installed (Vidzilla has no accounts, so
+// the install is the sign-up; `method: "extension_install"` says so), and
+// `activated` the first time Vidzilla saves a file (a download or a recording
 // that Chrome reports complete, see Downloads.onSaveChanged). The website's
 // server sends the only other event, `paid` (api/_posthog.js).
 //
@@ -40,6 +42,24 @@ export function activatedEvent(installId: string, version: string, now: number):
       // No location is looked up from the IP address.
       $geoip_disable: true,
       $set_once: { activated_at: at },
+    },
+  };
+}
+
+export function signedUpEvent(installId: string, version: string, now: number): CaptureBody {
+  const at = new Date(now).toISOString();
+  return {
+    api_key: POSTHOG_KEY,
+    event: "signed_up",
+    distinct_id: installId,
+    timestamp: at,
+    properties: {
+      product: "vidzilla",
+      // No account exists: the install is the sign-up.
+      method: "extension_install",
+      extension_version: version,
+      $geoip_disable: true,
+      $set_once: { installed_at: at },
     },
   };
 }
@@ -109,13 +129,81 @@ export async function activateOnce(deps: ActivationDeps): Promise<boolean> {
   return sent;
 }
 
+export interface SignUpDeps {
+  /** When `signed_up` went out for this install (synced with the Chrome profile). */
+  signedUpAt(): Promise<number | undefined>;
+  markSignedUp(at: number): Promise<void>;
+  /** Whether a fresh install's `signed_up` still has to go out (this computer only). */
+  signUpPending(): Promise<boolean>;
+  setSignUpPending(pending: boolean): Promise<void>;
+  installId(): Promise<string>;
+  send(body: CaptureBody): Promise<boolean>;
+  version: string;
+  now(): number;
+}
+
+const chromeSignUpDeps = (): SignUpDeps => ({
+  signedUpAt: async () => {
+    const stored = (await chrome.storage.sync.get(storageKeys.signedUpAt))[storageKeys.signedUpAt];
+    return typeof stored === "number" ? stored : undefined;
+  },
+  markSignedUp: (at) => chrome.storage.sync.set({ [storageKeys.signedUpAt]: at }),
+  signUpPending: async () => (await chrome.storage.local.get(storageKeys.signUpPending))[storageKeys.signUpPending] === true,
+  setSignUpPending: (p) => (p ? chrome.storage.local.set({ [storageKeys.signUpPending]: true }) : chrome.storage.local.remove(storageKeys.signUpPending)),
+  installId: getInstallId,
+  send: post,
+  version: chrome.runtime.getManifest().version,
+  now: Date.now,
+});
+
+/**
+ * Sends `signed_up` if this install has a pending one and the Chrome profile
+ * hasn't sent it before (a reinstall keeps the synced install ID, so it isn't
+ * a new sign-up). It stays pending until PostHog takes it.
+ */
+export async function signUpOnce(deps: SignUpDeps): Promise<boolean> {
+  if (!(await deps.signUpPending())) return false;
+  if ((await deps.signedUpAt()) !== undefined) {
+    await deps.setSignUpPending(false);
+    return false;
+  }
+  const now = deps.now();
+  const sent = await deps.send(signedUpEvent(await deps.installId(), deps.version, now));
+  if (sent) {
+    await deps.markSignedUp(now);
+    await deps.setSignUpPending(false);
+  }
+  return sent;
+}
+
 let pending: Promise<unknown> = Promise.resolve();
 
-/** A file was saved. Chained, so two saves finishing together send `activated` once. */
-export function noteActivated(deps: ActivationDeps = chromeDeps()): Promise<boolean> {
-  const next = pending.then(() => activateOnce(deps));
+function chain<T>(task: () => Promise<T>): Promise<T> {
+  const next = pending.then(task);
   pending = next.catch(() => {});
   return next;
+}
+
+/** Vidzilla was just installed (not updated): `signed_up` goes out now, or on a later try. */
+export function noteInstalled(deps: SignUpDeps = chromeSignUpDeps()): Promise<boolean> {
+  return chain(async () => {
+    await deps.setSignUpPending(true);
+    return signUpOnce(deps);
+  });
+}
+
+/** Retries a `signed_up` that couldn't go out at install time (offline, say). */
+export function retrySignUp(deps: SignUpDeps = chromeSignUpDeps()): Promise<boolean> {
+  return chain(() => signUpOnce(deps));
+}
+
+/** A file was saved. Chained, so two saves finishing together send `activated` once, after any pending `signed_up`. */
+export function noteActivated(deps: ActivationDeps = chromeDeps(), signUp?: SignUpDeps): Promise<boolean> {
+  return chain(async () => {
+    // A pending sign-up never blocks `activated`.
+    try { await signUpOnce(signUp ?? chromeSignUpDeps()); } catch { /* sent on a later try */ }
+    return activateOnce(deps);
+  });
 }
 
 /**

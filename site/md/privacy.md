@@ -2,7 +2,7 @@
 
 Effective 4 November 2026
 
-Vidzilla is a Chrome extension that finds the video and audio a page plays and saves it to your computer. It has no accounts. It doesn't sell your personal information, and it contains no third-party ad code. The first time it saves a file it reports that once to PostHog, our product analytics service, and if you buy the ad-free upgrade our server reports the purchase there too (see Product analytics below). Every few downloads it shows a short ad for another app by the same maker.
+Vidzilla is a Chrome extension that finds the video and audio a page plays and saves it to your computer. It has no accounts. It doesn't sell your personal information, and it contains no third-party ad code. When it's installed, and the first time it saves a file, it reports each of those once to PostHog, our product analytics service, and if you buy the ad-free upgrade our server reports the purchase there too (see Product analytics below). Every few downloads it shows a short ad for another app by the same maker.
 
 ## What Vidzilla reads
 
@@ -16,10 +16,11 @@ On your computer. The list of media found in each tab is kept in Chrome's sessio
 
 ## What Vidzilla sends
 
-Nothing about the pages you visit or what you save. Most of Vidzilla's requests go to the sites that host the media you choose to save, the same requests the page itself made. Two small ones go to our website, vidzilla.followusai.com, and one, once, to PostHog:
+Nothing about the pages you visit or what you save. Most of Vidzilla's requests go to the sites that host the media you choose to save, the same requests the page itself made. Two small ones go to our website, vidzilla.followusai.com, and two, each sent only once, to PostHog:
 
 - **The list of ads**: every few hours it downloads ads.json, the text and links of the current ads. Seeing or clicking an ad isn't reported anywhere.
 - **The ad-free check**: when you buy, when you press Check again, and once a day after you've paid, it sends your copy's install ID, a random code made when Vidzilla was installed and synced with your Chrome profile, and gets back whether that ID paid to remove ads. On a subscription, Manage in Settings sends the same ID to open Stripe's billing page, where you can cancel or change your card. Opening Settings also asks, at most every few hours, what removing the ads costs this copy, sending the same ID. It asks Stripe and answers yes or no, and keeps no records of its own.
+- **The install**: when Vidzilla is first installed, it sends PostHog one event, "signed_up", with the install ID, Vidzilla's version and the time. Vidzilla has no accounts, so this only counts new installs. It's sent once per install ID: reinstalling on the same Chrome profile doesn't send it again.
 - **The first save**: the first time your copy saves a file, it sends PostHog one event, "activated", with the install ID, Vidzilla's version and the time. It's sent once per install ID and never again, and it says nothing about the page or the file.
 
 These requests carry no cookies and nothing about you or your downloads. Like any web request they reach our host, Vercel, from your IP address, which we don't use to identify you.
@@ -30,7 +31,11 @@ Payment happens on Stripe's checkout page. Stripe receives your card details and
 
 ## Product analytics
 
-We use [PostHog](https://posthog.com/privacy) to count how many copies get Vidzilla working and how many go on to pay, so we can improve it and contact buyers about their purchase. PostHog stores this for us as our processor, on its US servers (PostHog Cloud US), and doesn't use it for its own purposes. It receives only the two events above: "activated" from the extension, and "paid" from our server, both filed under your copy's install ID, with your email added only if you buy. Nothing else is reported: not the pages you visit, the media Vidzilla finds or saves, or how you use it. Like any web request, the extension's one request reaches PostHog from your IP address; we don't have it look up your location and don't use the address to identify you. To have this data deleted, write to [{{supportEmail}}](mailto:{{supportEmail}}) with your install ID or purchase email.
+We use [PostHog](https://posthog.com/privacy) to count how many copies get installed, how many get Vidzilla working and how many go on to pay, so we can improve it and contact buyers about their purchase. PostHog stores this for us as our processor, on its US servers (PostHog Cloud US), and doesn't use it for its own purposes. It receives only the three events above: "signed_up" and "activated" from the extension, and "paid" from our server, all filed under your copy's install ID, with your email added only if you buy. Nothing else is reported: not the pages you visit, the media Vidzilla finds or saves, or how you use it. Like any web request, the extension's two requests reach PostHog from your IP address; PostHog discards the address instead of storing it, and we don't have it look up your location. To have this data deleted, write to [{{supportEmail}}](mailto:{{supportEmail}}) with your install ID or purchase email.
+
+## Our website
+
+The website, vidzilla.followusai.com, uses Vercel Web Analytics to count visits. It sets no cookies. For each page view it records the page address, the referring site, your country, and your browser, operating system and device type. It tells visits apart with a daily hash of your IP address and browser that isn't stored and can't be used to identify you. Vercel, our host, processes this for us. It covers the website only: the extension sends nothing to it.
 
 ## Why it asks for its permissions
 

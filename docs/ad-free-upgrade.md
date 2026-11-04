@@ -210,9 +210,17 @@ too: the kept checkout above keeps it counted.
 
 ## Analytics
 
-Two events go to PostHog (project 708991, US cloud), both with the install ID
-as the person and `product: "vidzilla"`:
+Three events go to PostHog (project 708991, US cloud, "Discard client IP
+data" on), all with the install ID as the person and `product: "vidzilla"`:
 
+- `signed_up`: a new install (`chrome.runtime.onInstalled` with reason
+  `install` in `src/sw/main.ts` calls `noteInstalled` in
+  `src/sw/analytics.ts`), with `method: "extension_install"`, since Vidzilla
+  has no accounts. Once per install ID (`signedUpAt` in `chrome.storage.sync`,
+  so a reinstall on the same Chrome profile isn't counted again). If PostHog
+  can't be reached it stays pending (`signUpPending` in
+  `chrome.storage.local`) and is retried when Chrome starts and before the
+  first `activated`. Updates never send it.
 - `activated`: the first file an install saves (`Downloads.onSaveChanged` in
   `src/sw/downloads.ts` calls `noteActivated` in `src/sw/analytics.ts`), sent
   by the service worker with `fetch`, once per install ID (`activatedAt` in
@@ -225,8 +233,6 @@ as the person and `product: "vidzilla"`:
   code), `currency` (lowercase), `variant` and the buyer's email as a person
   property. Not sent for a checkout over a day old or when the install bought
   before; renewals never reach it. There's no Stripe webhook.
-
-There is no `signed_up`: Vidzilla has no accounts.
 
 ## Store and policy
 

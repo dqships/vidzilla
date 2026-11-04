@@ -15,7 +15,7 @@ There is one version of Vidzilla and it costs nothing. You get every feature the
 - **Every quality**: pick any quality the site offers, up to the highest it sends. Nothing is re-encoded.
 - **Live streams and player recording**: record a live stream until you stop it, or record a player whose stream can't be fetched as a file.
 - **No limits**: no cap on how many videos you save, how long they are, or how big the files get. No watermark.
-- **No account, no tracking**: Vidzilla has no sign-in and contains no analytics code. Its ads are for our own apps and report nothing back.
+- **No account, browsing never tracked**: Vidzilla has no sign-in, and never reports the pages you visit or what you save: only, once, that it saved its first file. Its ads are for our own apps and report nothing back.
 
 ## Why it's free
 

@@ -42,6 +42,8 @@ export const storageKeys = {
   paidSession: "paidSession",
   /** What removing the ads costs this install, as the website last said (shared/license.ts). */
   prices: "prices",
+  /** When this install's first save was reported to PostHog as `activated` (ms), in chrome.storage.sync (sw/analytics.ts). */
+  activatedAt: "activatedAt",
 } as const;
 
 export function sendCommand(cmd: Command): Promise<CommandResult> {

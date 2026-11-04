@@ -2,6 +2,14 @@
 
 ## Done
 
+- 2026-11-04: PostHog product analytics (project 708991). `activated` on an
+  install's first saved file (service worker, `src/sw/analytics.ts`) and
+  `paid` on a first purchase (`api/license.js`, from the thanks page), both
+  under the install ID; no `signed_up`, since there are no accounts. Privacy
+  policy, pricing and home page copy and the store listing notes updated.
+  Extension bumped to 1.0.5: upload it and update the Privacy practices tab
+  (`store/README.md`).
+
 - 2026-11-03: Site icons for search and browsers. `scripts/make-brand.mjs` now
   also makes `brand/favicon.ico` (16, 32, 48 px), `app-icon-96.png`,
   `app-icon-192.png` and `apple-touch-icon.png` (180 px) from the app icon; the

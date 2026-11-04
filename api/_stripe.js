@@ -133,6 +133,49 @@ export async function checkLicense(stripe, installId, sessionId) {
   return NONE;
 }
 
+/** A thanks page older than this no longer reports its sale (a bookmark, a reopened tab). */
+export const SALE_WINDOW_MS = 24 * 3_600_000;
+
+/** Currencies Stripe counts in whole units: no cents to divide by. */
+const ZERO_DECIMAL = new Set(["bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg", "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"]);
+
+/** Stripe's amount (cents) in major units: 900 usd is 9. */
+export function majorUnits(amount, currency) {
+  return ZERO_DECIMAL.has(currency) ? amount : amount / 100;
+}
+
+/**
+ * The sale a thanks page's checkout made, for the `paid` analytics event
+ * (api/_posthog.js): {id, plan, amount, currency, email, variant, at}, or
+ * undefined when it isn't this install's first purchase. Renewals never come
+ * here (only a checkout does), and a later purchase by the same install (a
+ * new subscription after one lapsed, lifetime after a subscription) has an
+ * earlier one carrying its install ID. A 100% off launch code makes a sale
+ * of 0. The amount is what the checkout charged, discounts included.
+ */
+export async function firstSale(stripe, installId, sessionId, now = Date.now()) {
+  const session = await stripe("GET", `/v1/checkout/sessions/${sessionId}`);
+  if (session.client_reference_id !== installId || session.status !== "complete" || session.payment_status === "unpaid") return undefined;
+  if (now - session.created * 1000 > SALE_WINDOW_MS) return undefined;
+  const id = installId.replace(/'/g, "");
+  const [payments, subs] = await Promise.all([
+    stripe("GET", "/v1/payment_intents/search", { query: `metadata['install_id']:'${id}' AND status:'succeeded'` }),
+    stripe("GET", "/v1/subscriptions/search", { query: `metadata['install_id']:'${id}'` }),
+  ]);
+  const earlier = (list, own) => list.data.some((x) => x.id !== own && x.created < session.created);
+  if (earlier(payments, session.payment_intent) || earlier(subs, session.subscription)) return undefined;
+  const currency = String(session.currency ?? "usd").toLowerCase();
+  return {
+    id: session.id ?? sessionId,
+    plan: session.mode === "subscription" ? "subscription" : "lifetime",
+    amount: majorUnits(session.amount_total ?? 0, currency),
+    currency,
+    email: session.customer_details?.email ?? undefined,
+    variant: session.metadata?.variant,
+    at: session.created * 1000,
+  };
+}
+
 /**
  * A Stripe customer portal session for this install's subscription, where the
  * buyer can cancel it or change the card. The install ID finds the customer

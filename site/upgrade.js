@@ -85,10 +85,19 @@ async function confirmThanks() {
     text.textContent = "This page doesn't carry a purchase to confirm.";
     return;
   }
+  // confirm=1 lets the server report the sale to our analytics, once: a reload of this page doesn't again.
+  const reported = `vz-paid:${session}`;
+  let first = true;
   try {
-    const res = await fetch(`/api/license?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`);
+    first = !localStorage.getItem(reported);
+  } catch {}
+  try {
+    const res = await fetch(`/api/license?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}${first ? "&confirm=1" : ""}`);
     const license = await res.json();
     if (!license.adFree) throw new Error("not confirmed");
+    try {
+      localStorage.setItem(reported, "1");
+    } catch {}
     title.textContent = "Thanks, the ads are off";
     edge.textContent = license.until ? `Subscription · paid until ${DATE.format(license.until)}` : "Lifetime · paid once";
     text.textContent = "Thank you for supporting Vidzilla. You can close this tab.";

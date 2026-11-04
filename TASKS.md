@@ -2,6 +2,11 @@
 
 ## Done
 
+- 2026-11-04: `signed_up` on a new install (`method: "extension_install"`,
+  service worker, `src/sw/analytics.ts`), retried at startup if PostHog was
+  unreachable. Privacy policy now also discloses the install event and the
+  website's Vercel Web Analytics. "Discard client IP data" turned on in
+  PostHog project 708991. Still ships as 1.0.5 (not yet uploaded).
 - 2026-11-04: PostHog product analytics (project 708991). `activated` on an
   install's first saved file (service worker, `src/sw/analytics.ts`) and
   `paid` on a first purchase (`api/license.js`, from the thanks page), both

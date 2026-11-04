@@ -44,6 +44,10 @@ export const storageKeys = {
   prices: "prices",
   /** When this install's first save was reported to PostHog as `activated` (ms), in chrome.storage.sync (sw/analytics.ts). */
   activatedAt: "activatedAt",
+  /** When this install was reported to PostHog as `signed_up` (ms), in chrome.storage.sync (sw/analytics.ts). */
+  signedUpAt: "signedUpAt",
+  /** True while a fresh install's `signed_up` still has to reach PostHog, in chrome.storage.local (sw/analytics.ts). */
+  signUpPending: "signUpPending",
 } as const;
 
 export function sendCommand(cmd: Command): Promise<CommandResult> {

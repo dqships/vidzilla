@@ -136,9 +136,10 @@ extension's reload button.
   page), and Saved files lists what Vidzilla saved (show in folder, open the
   page it came from) inside the popup or side panel. History lives in
   `chrome.storage.local`, capped at 300 entries.
-- **Product analytics** (`src/sw/analytics.ts`, `api/_posthog.js`): two
+- **Product analytics** (`src/sw/analytics.ts`, `api/_posthog.js`): three
   PostHog events, under the random install ID. The service worker sends
-  `activated` once, on an install's first saved file, with `fetch` (no
+  `signed_up` once, when the extension is installed (Vidzilla has no
+  accounts), and `activated` once, on an install's first saved file, with `fetch` (no
   PostHog script, which Manifest V3 wouldn't allow); the license API sends
   `paid` for a first purchase. Nothing about pages or files is reported. See
   [docs/ad-free-upgrade.md](docs/ad-free-upgrade.md#analytics).

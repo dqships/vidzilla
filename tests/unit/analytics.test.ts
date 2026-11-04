@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activateOnce, activatedEvent, noteActivated, olderVersion, POSTHOG_KEY, skipActivationIfSavedBefore, type ActivationDeps } from "../../src/sw/analytics";
+import { activateOnce, activatedEvent, noteActivated, noteInstalled, olderVersion, POSTHOG_KEY, retrySignUp, signedUpEvent, signUpOnce, skipActivationIfSavedBefore, type ActivationDeps, type SignUpDeps } from "../../src/sw/analytics";
 // @ts-expect-error plain JS Vercel function module
 import { capture, paidEvent, stableUuid } from "../../api/_posthog.js";
 // @ts-expect-error plain JS Vercel function module
@@ -90,6 +90,77 @@ function stripeWith(session: Record<string, unknown>, payments: List = empty, su
     return routes[path];
   };
 }
+
+/** Sign-up state and PostHog, faked. */
+function signUpDeps(over: Partial<SignUpDeps> = {}) {
+  let signedUpAt: number | undefined;
+  let pendingFlag = false;
+  const sent: { event: string }[] = [];
+  const d: SignUpDeps = {
+    signedUpAt: async () => signedUpAt,
+    markSignedUp: async (at) => void (signedUpAt = at),
+    signUpPending: async () => pendingFlag,
+    setSignUpPending: async (p) => void (pendingFlag = p),
+    installId: async () => ID,
+    send: async (body) => (sent.push(body), true),
+    version: "1.0.5",
+    now: () => 1_800_000_000_000,
+    ...over,
+  };
+  return { d, sent, get signedUpAt() { return signedUpAt; }, get pending() { return pendingFlag; }, setSignedUpAt: (at: number) => void (signedUpAt = at) };
+}
+
+describe("signed_up", () => {
+  it("goes out once when Vidzilla is installed, with the install ID as the person", async () => {
+    const f = signUpDeps();
+    expect(await noteInstalled(f.d)).toBe(true);
+    expect(await retrySignUp(f.d)).toBe(false);
+    expect(f.sent).toEqual([signedUpEvent(ID, "1.0.5", 1_800_000_000_000)]);
+    expect(f.signedUpAt).toBe(1_800_000_000_000);
+    expect(f.pending).toBe(false);
+  });
+
+  it("stays pending when sending failed and goes out on a later try", async () => {
+    let ok = false;
+    const f = signUpDeps({ send: async (body) => (ok && f.sent.push(body), ok) });
+    expect(await noteInstalled(f.d)).toBe(false);
+    expect(f.pending).toBe(true);
+    ok = true;
+    expect(await retrySignUp(f.d)).toBe(true);
+    expect(f.sent.map((b) => b.event)).toEqual(["signed_up"]);
+    expect(f.pending).toBe(false);
+  });
+
+  it("isn't sent again when the Chrome profile already signed up (a reinstall)", async () => {
+    const f = signUpDeps();
+    f.setSignedUpAt(1);
+    expect(await noteInstalled(f.d)).toBe(false);
+    expect(f.sent).toEqual([]);
+    expect(f.pending).toBe(false);
+  });
+
+  it("isn't sent for an update or a restart without a pending install", async () => {
+    const f = signUpDeps();
+    expect(await signUpOnce(f.d)).toBe(false);
+    expect(f.sent).toEqual([]);
+  });
+
+  it("says it's an install, carries the product and version, and no location", () => {
+    const body = signedUpEvent(ID, "1.0.5", 0);
+    expect(body).toMatchObject({ api_key: POSTHOG_KEY, event: "signed_up", distinct_id: ID,
+      properties: { product: "vidzilla", method: "extension_install", extension_version: "1.0.5", $geoip_disable: true } });
+  });
+
+  it("goes out before `activated` when it was still pending at the first save", async () => {
+    const s = signUpDeps({ send: async () => false });
+    await noteInstalled(s.d);
+    const order: string[] = [];
+    const signUp: SignUpDeps = { ...s.d, send: async (b) => (order.push(b.event), true) };
+    const a = deps({ send: async (b) => (order.push(b.event), true) });
+    expect(await noteActivated(a.d, signUp)).toBe(true);
+    expect(order).toEqual(["signed_up", "activated"]);
+  });
+});
 
 describe("paid", () => {
   const lifetime = { mode: "payment", amount_total: 900, currency: "usd", payment_intent: "pi_1", customer_details: { email: "a@b.co" }, metadata: { variant: "b" } };

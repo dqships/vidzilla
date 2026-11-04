@@ -2,6 +2,15 @@
 
 ## Done
 
+- 2026-11-04: Website and checkout analytics in PostHog (project 708991),
+  without touching the extension (1.0.5 stays as published). Server-side
+  anonymous `$pageview` from `middleware.js` and `store_link_clicked` from
+  the new `/go/chrome-web-store` redirect (`api/store-link.js`, 302 to the
+  listing with `utm_source=vidzilla.followusai.com&utm_medium=website`), both
+  under a daily hash with no person profiles; the site still has no PostHog
+  script and no cookies. `checkout_started` from `api/checkout.js` under the
+  install ID. Privacy policy updated. `checkout_started` still needs a real
+  checkout to be seen in PostHog.
 - 2026-11-04: `signed_up` on a new install (`method: "extension_install"`,
   service worker, `src/sw/analytics.ts`), retried at startup if PostHog was
   unreachable. Privacy policy now also discloses the install event and the

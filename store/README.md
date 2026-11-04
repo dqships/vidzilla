@@ -143,7 +143,10 @@ Please only save media you have the right to keep.
   with location lookup turned off. It needs no new permission: `<all_urls>` already covers the
   request, and the CSP is unchanged. The website's server separately sends
   `paid` for a first purchase, with the email the buyer gave Stripe; that
-  never passes through the extension.
+  never passes through the extension. (The website's own analytics, its
+  anonymous page views, store link clicks and `checkout_started`, are sent
+  by the website's server and aren't part of the extension's data use; see
+  `docs/ad-free-upgrade.md#analytics`.)
 - **Data usage:** tick **Web history** (the addresses of pages and media are
   kept on the device for the media list and history), **Website content**
   (page titles and thumbnails) and **User activity** (the install and

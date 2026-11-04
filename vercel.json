@@ -6,6 +6,7 @@
   "ignoreCommand": "node scripts/vercel-ignore.mjs",
   "outputDirectory": "site-dist",
   "cleanUrls": true,
+  "rewrites": [{ "source": "/go/chrome-web-store", "destination": "/api/store-link" }],
   "headers": [
     {
       "source": "/(.*)",

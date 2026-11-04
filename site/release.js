@@ -2,7 +2,8 @@
 // nothing else on the site needs to change.
 
 export const release = {
-  // The Chrome Web Store listing. Every "Add to Chrome" button uses it.
+  // The Chrome Web Store listing. Every "Add to Chrome" button links to
+  // /go/chrome-web-store (api/store-link.js), which redirects here.
   storeUrl: "https://chromewebstore.google.com/detail/bmffjglgaejcnbjckhmppkbdcfgdnold",
 
   // Format support, shown on the formats reel and in the demo.

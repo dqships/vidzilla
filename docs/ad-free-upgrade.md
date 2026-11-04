@@ -210,8 +210,11 @@ too: the kept checkout above keeps it counted.
 
 ## Analytics
 
-Three events go to PostHog (project 708991, US cloud, "Discard client IP
-data" on), all with the install ID as the person and `product: "vidzilla"`:
+Four product events go to PostHog (project 708991, US cloud, "Discard
+client IP data" on), all with the install ID as the person and
+`product: "vidzilla"`. The extension sends only the first two (that's all
+the privacy policy and the store listing promise for it); the license and
+checkout functions send the other two:
 
 - `signed_up`: a new install (`chrome.runtime.onInstalled` with reason
   `install` in `src/sw/main.ts` calls `noteInstalled` in
@@ -226,6 +229,15 @@ data" on), all with the install ID as the person and `product: "vidzilla"`:
   by the service worker with `fetch`, once per install ID (`activatedAt` in
   `chrome.storage.sync`, set once PostHog took it). Copies updated from
   1.0.4 or older that had saved files already are marked without sending.
+- `checkout_started`: Stripe made a Checkout Session for an install
+  (`POST` in `api/checkout.js` calls `reportCheckout`, with
+  `checkoutStartedEvent` in `api/_posthog.js`, after the answer goes out with
+  `waitUntil`). Properties: `plan`, `variant` (the price group), `promo_code`
+  when a launch code was applied (not when it had run out and the checkout fell
+  back to full price), and `amount` (major units, discounts included) and
+  `currency` when Stripe gives `amount_total`. `$geoip_disable: true`, no
+  email. One per session (its `uuid` comes from the session ID), so pressing
+  a plan's button twice counts twice.
 - `paid`: a first purchase. The thanks page calls `/api/license` with
   `confirm=1` (once per browser); when the checkout says yes, the server
   (`reportSale` in `api/license.js`, `firstSale` in `api/_stripe.js`) sends
@@ -233,6 +245,41 @@ data" on), all with the install ID as the person and `product: "vidzilla"`:
   code), `currency` (lowercase), `variant` and the buyer's email as a person
   property. Not sent for a checkout over a day old or when the install bought
   before; renewals never reach it. There's no Stripe webhook.
+
+The website sends two more, anonymously, from the server, so the site keeps
+no PostHog script and sets no cookies (`api/_web-analytics.js`):
+
+- `$pageview`: `middleware.js` (`reportPageView`) for each GET of a listed
+  page (`site/pages.mjs`) or `/upgrade-thanks` on vidzilla.followusai.com,
+  handed to `waitUntil` so the page never waits. Skipped: bots, crawlers,
+  link previews, scripts and headless browsers (by user agent, or none),
+  prefetches and prerenders (`Purpose`, `Sec-Purpose`, `X-Purpose`, `X-Moz`,
+  `Next-Router-Prefetch`, `RSC`), markdown requests, HEAD, any path with a
+  file extension (assets, `ads.json`, `.md`, `/x.html`), `/api/`, `/go/` and
+  unknown paths, and any other host (local builds, `*.vercel.app` previews).
+- `store_link_clicked`: every "Add to Chrome" link is
+  `/go/chrome-web-store?from=<button>` (`home-hero`, `home-steps`,
+  `pricing-offer`, `pricing-install`, `md-*` in the markdown twins).
+  `vercel.json` rewrites it to `api/store-link.js`, which always answers 302
+  to `release.storeUrl` (`site/release.js`) plus
+  `utm_source=vidzilla.followusai.com&utm_medium=website`, and reports the
+  click with `waitUntil`; a PostHog error or hang never touches the
+  redirect. Properties: `from`, the referring page as `$current_url` /
+  `$pathname`, and `utm_*` from the link or else the referring page. Bots,
+  prefetches, HEAD and other hosts are redirected without a report.
+
+Both use a daily hash as `distinct_id`: SHA-256 of a fixed, non-secret salt,
+the UTC date, the visitor's IP (`x-real-ip`) and user agent, so a visitor is
+the same all day and new the next. The IP is never sent. They also send
+`$process_person_profile: false` (no person profiles), `$geoip_disable: true`
+(the request comes from Vercel), `$raw_user_agent` (PostHog derives browser,
+OS and device), `$referrer` / `$referring_domain` (query dropped, `$direct`
+without one), `$host` and `$lib` (`server-pageview` or `server-redirect`).
+`$current_url` keeps only `utm_*` from the query, since the upgrade pages
+carry the install ID and checkout ID there. Vercel Web Analytics stays on
+alongside. Check a deploy with one request as a clear user agent, e.g.
+`curl -A 'posthog-verify/1.0 (claude-code)' https://vidzilla.followusai.com/`,
+then filter on `$raw_user_agent` in PostHog.
 
 ## Store and policy
 

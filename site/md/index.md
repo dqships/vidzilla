@@ -2,7 +2,7 @@
 
 Vidzilla is a free Chrome extension that finds the video playing on a page and saves it to your computer as a file, at the quality the site sent. Nothing is re-encoded, and there is nothing to sign up for.
 
-- [Add Vidzilla to Chrome]({{storeUrl}}) (Chrome 116 or later)
+- [Add Vidzilla to Chrome]({{origin}}/go/chrome-web-store?from=md-home) (Chrome 116 or later)
 - No account, browsing never tracked
 
 ## Or paste a link
@@ -35,7 +35,7 @@ It all happens inside Chrome, with nothing else to install.
 
 Three steps and about a minute, from the Chrome Web Store to your first saved video.
 
-1. **Add it to Chrome.** Open Vidzilla on the [Chrome Web Store]({{storeUrl}}) and click Add to Chrome.
+1. **Add it to Chrome.** Open Vidzilla on the [Chrome Web Store]({{origin}}/go/chrome-web-store?from=md-home-steps) and click Add to Chrome.
 2. **Pin it.** Click the puzzle piece in Chrome's toolbar and pin Vidzilla, so the mark is always in reach.
 3. **Play, then click the mark.** Start a video on any page, click the Vidzilla mark, and save what it found.
 

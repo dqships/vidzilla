@@ -23,4 +23,4 @@ Vidzilla runs entirely in your browser. Files come straight from the site that s
 
 ## Get it
 
-Add Vidzilla from the [Chrome Web Store]({{storeUrl}}). It works in Chrome 116 and later on Windows, macOS, Linux and ChromeOS.
+Add Vidzilla from the [Chrome Web Store]({{origin}}/go/chrome-web-store?from=md-pricing). It works in Chrome 116 and later on Windows, macOS, Linux and ChromeOS.

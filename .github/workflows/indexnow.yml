@@ -1,16 +1,12 @@
 # Pings IndexNow (Bing, Yandex, Seznam, Naver, ...) with every URL in the live sitemap
 # after each successful production deploy on Vercel. Previews and local builds never run it.
 # The script logs failures instead of failing, so this job never blocks anything.
-# It listens for both events Vercel can send GitHub: deployment_status, and
-# repository_dispatch (vercel.deployment.success, which only fires for workflows on main).
-# Turn on "deployment_status Events" in the Vercel project's Settings > Git for this to run.
+# Needs "deployment_status Events" on in the Vercel project's Settings > Git.
 # workflow_dispatch lets someone with write access run a submission from the Actions tab.
 name: IndexNow
 
 on:
   deployment_status:
-  repository_dispatch:
-    types: [vercel.deployment.success]
   workflow_dispatch:
 
 permissions:
@@ -18,11 +14,10 @@ permissions:
 
 jobs:
   submit:
-    # Vercel names the deployment_status environment "Production", or "Production – <project>" when a repo has several projects.
+    # Vercel names the environment "Production", or "Production – <project>" when a repo has several projects.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'repository_dispatch' && github.event.client_payload.environment == 'production') ||
-      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && startsWith(github.event.deployment.environment, 'Production'))
+      (github.event.deployment_status.state == 'success' && startsWith(github.event.deployment.environment, 'Production'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

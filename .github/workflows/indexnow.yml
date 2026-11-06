@@ -1,18 +1,22 @@
 # Pings IndexNow (Bing, Yandex, Seznam, Naver, ...) with every URL in the live sitemap
 # after each successful production deploy on Vercel. Previews and local builds never run it.
 # The script logs failures instead of failing, so this job never blocks anything.
+# This Vercel project doesn't send deployment_status events, so the job listens for the
+# repository_dispatch event Vercel sends instead (it only fires for workflows on main).
+# workflow_dispatch lets someone with write access re-run a submission from the Actions tab.
 name: IndexNow
 
 on:
-  deployment_status:
+  repository_dispatch:
+    types: [vercel.deployment.success]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   submit:
-    # Vercel names the environment "Production", or "Production – <project>" when a repo has several projects.
-    if: github.event.deployment_status.state == 'success' && startsWith(github.event.deployment.environment, 'Production')
+    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.environment == 'production'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

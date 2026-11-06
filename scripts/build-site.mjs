@@ -192,6 +192,8 @@ cpSync(new URL("site/ads.json", root), new URL("ads.json", out));
 if (existsSync(new URL("site/ads/", root))) cpSync(new URL("site/ads/", root), new URL("ads/", out), { recursive: true });
 
 // Files at the root for crawlers and agents.
+// The IndexNow key file (scripts/indexnow.mjs), served as-is at /<key>.txt.
+cpSync(new URL("site/d21121a4676e4e52992abb4e767de470.txt", root), new URL("d21121a4676e4e52992abb4e767de470.txt", out));
 writeFileSync(
   new URL("robots.txt", out),
   `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`,

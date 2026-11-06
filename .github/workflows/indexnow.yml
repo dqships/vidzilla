@@ -1,0 +1,26 @@
+# Pings IndexNow (Bing, Yandex, Seznam, Naver, ...) with every URL in the live sitemap
+# after each successful production deploy on Vercel. Previews and local builds never run it.
+# The script logs failures instead of failing, so this job never blocks anything.
+name: IndexNow
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    # Vercel names the environment "Production", or "Production – <project>" when a repo has several projects.
+    if: github.event.deployment_status.state == 'success' && startsWith(github.event.deployment.environment, 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/indexnow.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/indexnow.mjs

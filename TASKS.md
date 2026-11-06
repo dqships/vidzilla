@@ -2,6 +2,7 @@
 
 ## Done
 
+- 2026-11-06: IndexNow for vidzilla.followusai.com. The key file is `site/d21121a4676e4e52992abb4e767de470.txt` (copied to the site root by `scripts/build-site.mjs`), and `.github/workflows/indexnow.yml` runs `scripts/indexnow.mjs` after every successful Vercel production deploy, sending every page in the live sitemap to Bing and the other IndexNow engines. Previews and local builds never send. Check Bing Webmaster Tools → IndexNow a day after the first production deploy.
 - 2026-11-04: Website and checkout analytics in PostHog (project 708991),
   without touching the extension (1.0.5 stays as published). Server-side
   anonymous `$pageview` from `middleware.js` and `store_link_clicked` from

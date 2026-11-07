@@ -1,7 +1,37 @@
 # Tasks
 
+## Next
+
+- Stripe webhook (live mode): Developers, Webhooks, Add destination, endpoint
+  `https://vidzilla.followusai.com/api/stripe-webhook`, events
+  `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+  `customer.subscription.deleted`. Put its signing secret in Vercel as
+  `STRIPE_WEBHOOK_SECRET` (Production, Secret) and redeploy. Details in
+  `docs/ad-free-upgrade.md` (Settings it needs).
+- After the first real sale or cancellation, check PostHog 708991 for one
+  `paid` / `subscription_cancelled` with `product: "vidzilla"`.
+
+## Decisions
+
+- 2026-11-06: Keep sending `paid` for a $0 checkout (100% off launch code),
+  with `amount: 0`, from both the thanks page and the Stripe webhook. Beans
+  and Guppy skip $0 invoices, so the weekly report counts Vidzilla's free
+  claims as paid and theirs not; that difference is accepted.
+
 ## Done
 
+- 2026-11-06: Stripe webhook for PostHog (`api/stripe-webhook.js`): `paid` on
+  an install's first purchase from `checkout.session.completed` /
+  `async_payment_succeeded`, so buyers who close the tab are counted (same
+  uuid and timestamp as the thanks page's report, so one event), and
+  `subscription_cancelled` on `customer.subscription.deleted` with Beans' and
+  Guppy's properties. Ignores other products on the shared Stripe account and
+  test mode. Privacy policy updated (effective 6 November 2026). Checked why
+  `checkout_started`, `activated` and `paid` never arrived: no bug. Extension
+  1.0.5 is published (Chrome Web Store, updated 2026-11-04, 4 users), so the
+  "not yet uploaded" note below is out of date. The last Vidzilla checkout in
+  Stripe was 2026-10-30, before those events shipped on 2026-11-04, and
+  `activated` needs a new install's first saved file.
 - 2026-11-06: IndexNow for vidzilla.followusai.com. The key file is `site/d21121a4676e4e52992abb4e767de470.txt` (copied to the site root by `scripts/build-site.mjs`), and `.github/workflows/indexnow.yml` runs `scripts/indexnow.mjs` after every successful Vercel production deploy, sending every page in the live sitemap to Bing and the other IndexNow engines. Previews and local builds never send. Check Bing Webmaster Tools → IndexNow a day after the first production deploy.
 - 2026-11-04: Website and checkout analytics in PostHog (project 708991),
   without touching the extension (1.0.5 stays as published). Server-side

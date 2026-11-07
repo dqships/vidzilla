@@ -1,8 +1,10 @@
 // Product analytics, server side: `checkout_started` when an install opens a
-// Stripe checkout and `paid` for its first purchase, sent to PostHog's
-// capture API with fetch (no SDK, no secret: the project key can only send
-// events). The extension sends `signed_up` and `activated`
-// (src/sw/analytics.ts). All four use the install ID as the person, so a
+// Stripe checkout, `paid` for its first purchase (from the thanks page and
+// the Stripe webhook, as one event) and `subscription_cancelled` when its
+// subscription ends (Stripe webhook, api/stripe-webhook.js), sent to
+// PostHog's capture API with fetch (no SDK, no secret: the project key can
+// only send events). The extension sends `signed_up` and `activated`
+// (src/sw/analytics.ts). All of them use the install ID as the person, so a
 // purchase joins the copy that made it. The website's anonymous page views
 // and store clicks use capture() too (api/_web-analytics.js).
 import { createHash } from "node:crypto";
@@ -39,6 +41,36 @@ export function paidEvent(installId, sale) {
       // Sent from Vercel: its address says nothing about where the buyer is.
       $geoip_disable: true,
       ...(sale.email ? { $set: { email: sale.email } } : {}),
+    },
+  };
+}
+
+/**
+ * `subscription_cancelled` for a subscription that ended (endedSubscription()
+ * in api/_stripe.js), from the Stripe webhook. The same properties Beans and
+ * Guppy send: `cancellation_reason` is the reason picked in the customer
+ * portal, else Stripe's own. One per subscription: its `uuid` comes from the
+ * subscription ID and its timestamp is when it ended, so a webhook retry is
+ * the same event again and PostHog keeps one.
+ */
+export function subscriptionCancelledEvent(end) {
+  const reason = end.feedback ?? end.reason;
+  return {
+    api_key: POSTHOG_KEY,
+    event: "subscription_cancelled",
+    distinct_id: end.installId,
+    uuid: stableUuid(`subscription_cancelled:${end.subscriptionId}`),
+    timestamp: new Date(end.at).toISOString(),
+    properties: {
+      product: "vidzilla",
+      plan: "subscription",
+      ...(end.variant ? { variant: end.variant } : {}),
+      ...(reason ? { cancellation_reason: reason } : {}),
+      ...(end.reason ? { stripe_cancellation_reason: end.reason } : {}),
+      ...(end.daysSubscribed !== null ? { days_subscribed: end.daysSubscribed } : {}),
+      ended_in_trial: end.endedInTrial,
+      // Sent from Vercel: its address says nothing about where the buyer is.
+      $geoip_disable: true,
     },
   };
 }

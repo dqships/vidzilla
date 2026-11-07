@@ -18,10 +18,15 @@ const sign = (payload: string, t: number, secret = SECRET) => `t=${t},v1=${creat
 type Body = { event: string; distinct_id: string; uuid: string; timestamp: string; properties: Record<string, unknown> };
 
 /** A fake Stripe for the first-purchase searches. */
-function stripeWith(payments: { data: unknown[] } = empty, subs: { data: unknown[] } = empty, session?: Record<string, unknown>) {
-  return async (_method: string, path: string) => {
+type List = { data: unknown[] };
+
+/** A fake Stripe for the first-charge searches: paid invoices by subscription, and subscriptions by ID. */
+function stripeWith(payments: List = empty, subs: List = empty, session?: Record<string, unknown>, invoices: Record<string, List> = {}, subscriptions: Record<string, unknown> = {}) {
+  return async (_method: string, path: string, params: Record<string, unknown> = {}) => {
     if (path === "/v1/payment_intents/search") return payments;
     if (path === "/v1/subscriptions/search") return subs;
+    if (path === "/v1/invoices") return invoices[String(params.subscription)] ?? empty;
+    if (path.startsWith("/v1/subscriptions/") && path.slice(18) in subscriptions) return subscriptions[path.slice(18)];
     if (session && path === `/v1/checkout/sessions/${SESSION}`) return session;
     throw new Error(`unexpected ${path}`);
   };
@@ -120,7 +125,9 @@ describe("paid from the webhook", () => {
   it("isn't reported for a later purchase by the same install", async () => {
     const send = vi.fn();
     const resubscribed = { ...subscriptionSession, subscription: "sub_2" };
-    const stripe = stripeWith(empty, { data: [{ id: "sub_1", created: CREATED - 86_400 * 400 }, { id: "sub_2", created: CREATED }] });
+    const stripe = stripeWith(empty, { data: [{ id: "sub_1", created: CREATED - 86_400 * 400 }, { id: "sub_2", created: CREATED }] }, undefined, {
+      sub_1: { data: [{ id: "in_1", created: CREATED - 86_400 * 400, amount_paid: 99 }] },
+    });
     expect(await handleEvent(event("checkout.session.completed", resubscribed), { stripe, send })).toMatch(/^ignored/);
     expect(send).not.toHaveBeenCalled();
   });
@@ -139,6 +146,71 @@ describe("paid from the webhook", () => {
     expect(await handleEvent(event("invoice.paid", {}), { stripe, send })).toMatch(/^ignored/);
     expect(send).not.toHaveBeenCalled();
     expect(isVidzillaSession(lifetimeSession)).toBe(true);
+  });
+});
+
+describe("paid for the first renewal that charges", () => {
+  const DAY = 86_400;
+  // Subscribed with a code that made the first three months free; the fourth is charged.
+  const renewal = {
+    id: "in_4",
+    object: "invoice",
+    billing_reason: "subscription_cycle",
+    amount_paid: 700,
+    currency: "usd",
+    created: CREATED + 90 * DAY,
+    status_transitions: { paid_at: CREATED + 90 * DAY + 3600 },
+    customer_email: "a@b.co",
+    subscription: "sub_1",
+    subscription_details: { metadata: { install_id: ID, variant: "c" } },
+  };
+  const subs = { data: [{ id: "sub_1", created: CREATED }] };
+  const freeSoFar = { sub_1: { data: [{ id: "in_1", created: CREATED, amount_paid: 0 }, { id: "in_4", created: CREATED + 90 * DAY, amount_paid: 700 }] } };
+
+  it("is sent once the code runs out and the subscription first charges", async () => {
+    const sent: Body[] = [];
+    const result = await handleEvent(event("invoice.paid", renewal), { stripe: stripeWith(empty, subs, undefined, freeSoFar), send: async (b: Body) => void sent.push(b) });
+    expect(result).toBe("paid");
+    expect(sent[0]).toMatchObject({ event: "paid", distinct_id: ID, timestamp: new Date((CREATED + 90 * DAY + 3600) * 1000).toISOString() });
+    expect(sent[0]!.properties).toEqual({ product: "vidzilla", plan: "subscription", amount: 7, currency: "usd", variant: "c", $geoip_disable: true, $set: { email: "a@b.co" } });
+
+    // Stripe's retry is the same event.
+    const again: Body[] = [];
+    await handleEvent(event("invoice.paid", renewal, { id: "evt_2" }), { stripe: stripeWith(empty, subs, undefined, freeSoFar), send: async (b: Body) => void again.push(b) });
+    expect(again[0]).toEqual(sent[0]);
+  });
+
+  it("isn't sent for a renewal after the install already paid", async () => {
+    const send = vi.fn();
+    const paidBefore = { sub_1: { data: [{ id: "in_1", created: CREATED, amount_paid: 700 }, { id: "in_4", created: CREATED + 90 * DAY, amount_paid: 700 }] } };
+    expect(await handleEvent(event("invoice.paid", renewal), { stripe: stripeWith(empty, subs, undefined, paidBefore), send })).toMatch(/^ignored/);
+    const lifetimeBefore = { data: [{ id: "pi_1", created: CREATED + DAY, amount_received: 900 }] };
+    expect(await handleEvent(event("invoice.paid", renewal), { stripe: stripeWith(lifetimeBefore, subs, undefined, freeSoFar), send })).toMatch(/^ignored/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("leaves a subscription's first invoice to its checkout, and skips $0 and other products", async () => {
+    const send = vi.fn();
+    const stripe = stripeWith(empty, subs, undefined, freeSoFar);
+    for (const invoice of [
+      { ...renewal, billing_reason: "subscription_create" },
+      { ...renewal, amount_paid: 0 },
+      { ...renewal, subscription_details: { metadata: { app: "guppy", clerk_user_id: "user_1" } } },
+      { ...renewal, subscription: null, subscription_details: null },
+    ]) {
+      expect(await handleEvent(event("invoice.paid", invoice), { stripe, send })).toMatch(/^ignored/);
+    }
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("reads the newer invoice shape, and asks Stripe when the event has no metadata", async () => {
+    const send = vi.fn();
+    const basil = { ...renewal, subscription: undefined, subscription_details: undefined, parent: { subscription_details: { subscription: "sub_1", metadata: { install_id: ID } } } };
+    expect(await handleEvent(event("invoice.paid", basil), { stripe: stripeWith(empty, subs, undefined, freeSoFar), send })).toBe("paid");
+    const bare = { ...renewal, subscription_details: { metadata: {} } };
+    const stripe = stripeWith(empty, subs, undefined, freeSoFar, { sub_1: { id: "sub_1", metadata: { install_id: ID, variant: "c" } } });
+    expect(await handleEvent(event("invoice.paid", bare), { stripe, send })).toBe("paid");
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -211,7 +283,7 @@ describe("POST /api/stripe-webhook", () => {
   it("acknowledges a signed event it has nothing to do with", async () => {
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("STRIPE_SECRET_KEY", "rk_test");
-    const payload = JSON.stringify(event("invoice.paid", {}));
+    const payload = JSON.stringify(event("customer.created", {}));
     const res = await POST(request(payload, sign(payload, Math.floor(Date.now() / 1000))));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ received: true, result: "ignored: event type" });

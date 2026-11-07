@@ -147,12 +147,12 @@ export function majorUnits(amount, currency) {
 /**
  * The sale a thanks page's checkout made, for the `paid` analytics event
  * (api/_posthog.js): {id, plan, amount, currency, email, variant, at}, or
- * undefined when it isn't this install's first purchase. Renewals never come
- * here (only a checkout does), and a later purchase by the same install (a
- * new subscription after one lapsed, lifetime after a subscription) has an
- * earlier one carrying its install ID. A checkout that charged nothing (a
- * 100% off launch code) isn't a sale, as in Beans and Guppy. The amount is
- * what the checkout charged, discounts included.
+ * undefined when it isn't this install's first charge. A later purchase by
+ * the same install (a new subscription after one lapsed, lifetime after a
+ * subscription) finds the earlier charge (chargedBefore). A checkout that
+ * charged nothing (a 100% off launch code) isn't a sale, as in Beans and
+ * Guppy; the first renewal that charges is (invoiceSale). The amount is what
+ * the checkout charged, discounts included.
  */
 export async function firstSale(stripe, installId, sessionId, now = Date.now()) {
   const session = await stripe("GET", `/v1/checkout/sessions/${sessionId}`);
@@ -187,13 +187,7 @@ export async function saleOf(stripe, session) {
   if (!isInstallId(installId) || session.status !== "complete" || session.payment_status === "unpaid") return undefined;
   // Nothing was charged (a 100% off launch code): not a sale, as Beans and Guppy count it.
   if (!(typeof session.amount_total === "number" && session.amount_total > 0)) return undefined;
-  const id = installId.replace(/'/g, "");
-  const [payments, subs] = await Promise.all([
-    stripe("GET", "/v1/payment_intents/search", { query: `metadata['install_id']:'${id}' AND status:'succeeded'` }),
-    stripe("GET", "/v1/subscriptions/search", { query: `metadata['install_id']:'${id}'` }),
-  ]);
-  const earlier = (list, own) => list.data.some((x) => x.id !== own && x.created < session.created);
-  if (earlier(payments, session.payment_intent) || earlier(subs, session.subscription)) return undefined;
+  if (await chargedBefore(stripe, installId, session.created, { paymentIntent: session.payment_intent })) return undefined;
   const currency = String(session.currency ?? "usd").toLowerCase();
   return {
     id: session.id,
@@ -203,6 +197,68 @@ export async function saleOf(stripe, session) {
     email: session.customer_details?.email ?? undefined,
     variant: session.metadata?.variant,
     at: session.created * 1000,
+  };
+}
+
+/**
+ * Was this install charged money before `beforeS` (seconds)? A paid lifetime
+ * payment carrying its install ID, or a paid invoice above 0 on one of its
+ * subscriptions. A checkout or invoice a 100% off code made free doesn't
+ * count, so the first real charge after one is still the first sale.
+ * `paymentIntent` and `invoice` name the charge being judged, left out.
+ */
+export async function chargedBefore(stripe, installId, beforeS, { paymentIntent, invoice } = {}) {
+  const id = installId.replace(/'/g, "");
+  const [payments, subs] = await Promise.all([
+    stripe("GET", "/v1/payment_intents/search", { query: `metadata['install_id']:'${id}' AND status:'succeeded'` }),
+    stripe("GET", "/v1/subscriptions/search", { query: `metadata['install_id']:'${id}'` }),
+  ]);
+  const before = (x) => typeof x.created === "number" && x.created < beforeS;
+  if (payments.data.some((pi) => pi.id !== paymentIntent && before(pi) && (pi.amount_received ?? pi.amount ?? 0) > 0)) return true;
+  for (const sub of subs.data.filter(before)) {
+    const invoices = await stripe("GET", "/v1/invoices", { subscription: sub.id, status: "paid", limit: 100 });
+    if (invoices.data.some((inv) => inv.id !== invoice && before(inv) && inv.amount_paid > 0)) return true;
+  }
+  return false;
+}
+
+/** The subscription an invoice bills, and its metadata when the event carries it (API versions put it in different places). */
+function invoiceSubscription(invoice) {
+  const details = invoice.parent?.subscription_details ?? invoice.subscription_details ?? {};
+  const sub = invoice.subscription ?? details.subscription;
+  const id = typeof sub === "string" ? sub : sub?.id;
+  const metadata = details.metadata && Object.keys(details.metadata).length ? details.metadata : typeof sub === "object" ? sub?.metadata : undefined;
+  return { id, metadata };
+}
+
+/**
+ * The sale a paid subscription invoice made, for `paid`, when it's the
+ * install's first real charge: a renewal after a launch code that made the
+ * first periods free. The first invoice of a subscription is left to its
+ * checkout (saleOf), which reports the same charge. Undefined for anything
+ * else: no charge, not Vidzilla's, or charged before.
+ */
+export async function invoiceSale(stripe, invoice) {
+  if (invoice?.billing_reason === "subscription_create") return undefined;
+  if (!(typeof invoice?.amount_paid === "number" && invoice.amount_paid > 0)) return undefined;
+  const { id: subscriptionId, metadata } = invoiceSubscription(invoice);
+  if (!subscriptionId) return undefined;
+  const sub = metadata ? { id: subscriptionId, metadata } : await stripe("GET", `/v1/subscriptions/${subscriptionId}`);
+  if (!isVidzillaSubscription(sub)) return undefined;
+  const installId = sub.metadata.install_id;
+  const created = invoice.created;
+  if (await chargedBefore(stripe, installId, created, { invoice: invoice.id })) return undefined;
+  const currency = String(invoice.currency ?? "usd").toLowerCase();
+  const paidAt = invoice.status_transitions?.paid_at ?? created;
+  return {
+    installId,
+    id: invoice.id,
+    plan: "subscription",
+    amount: majorUnits(invoice.amount_paid, currency),
+    currency,
+    email: invoice.customer_email ?? undefined,
+    variant: typeof sub.metadata.variant === "string" ? sub.metadata.variant : undefined,
+    at: paidAt * 1000,
   };
 }
 

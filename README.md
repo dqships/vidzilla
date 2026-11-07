@@ -141,9 +141,10 @@ extension's reload button.
   `signed_up` once, when the extension is installed (Vidzilla has no
   accounts), and `activated` once, on an install's first saved file, with `fetch` (no
   PostHog script, which Manifest V3 wouldn't allow); the checkout API sends
-  `checkout_started` when Stripe opens a checkout; `paid` for a first
-  purchase comes from the Stripe webhook (`api/stripe-webhook.js`) and the
-  thanks page as one event; and the webhook sends `subscription_cancelled`
+  `checkout_started` when Stripe opens a checkout; `paid` for an install's
+  first real charge comes from the Stripe webhook (`api/stripe-webhook.js`,
+  at checkout or at the first renewal that charges) and the thanks page as
+  one event; and the webhook sends `subscription_cancelled`
   when a subscription ends. Nothing about pages or files is reported.
   The website adds anonymous `$pageview`s (from `middleware.js`) and
   `store_link_clicked` (every "Add to Chrome" link goes through

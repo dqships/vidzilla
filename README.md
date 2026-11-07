@@ -136,13 +136,15 @@ extension's reload button.
   page), and Saved files lists what Vidzilla saved (show in folder, open the
   page it came from) inside the popup or side panel. History lives in
   `chrome.storage.local`, capped at 300 entries.
-- **Product analytics** (`src/sw/analytics.ts`, `api/_posthog.js`): four
+- **Product analytics** (`src/sw/analytics.ts`, `api/_posthog.js`): five
   PostHog events, under the random install ID. The service worker sends
   `signed_up` once, when the extension is installed (Vidzilla has no
   accounts), and `activated` once, on an install's first saved file, with `fetch` (no
   PostHog script, which Manifest V3 wouldn't allow); the checkout API sends
-  `checkout_started` when Stripe opens a checkout, and the license API sends
-  `paid` for a first purchase. Nothing about pages or files is reported.
+  `checkout_started` when Stripe opens a checkout; `paid` for a first
+  purchase comes from the Stripe webhook (`api/stripe-webhook.js`) and the
+  thanks page as one event; and the webhook sends `subscription_cancelled`
+  when a subscription ends. Nothing about pages or files is reported.
   The website adds anonymous `$pageview`s (from `middleware.js`) and
   `store_link_clicked` (every "Add to Chrome" link goes through
   `/go/chrome-web-store`, `api/store-link.js`, a 302 to the store), sent by

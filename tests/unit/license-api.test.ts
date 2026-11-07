@@ -163,7 +163,7 @@ describe("customer portal", () => {
     });
     expect(await portalSession(stripe, ID)).toBe("https://billing.stripe.com/p/session/x");
     expect(calls[0]!.params.query).toBe(`metadata['install_id']:'${ID}'`);
-    expect(calls[1]).toMatchObject({ method: "POST", params: { customer: "cus_live", return_url: "https://vidzilla.followusai.com" } });
+    expect(calls[1]).toMatchObject({ method: "POST", params: { customer: "cus_live", configuration: "bpc_1UZA0DDyfH6JDnExHm1XDQLR", return_url: "https://vidzilla.followusai.com" } });
   });
 
   it("has nothing to open for an install without a subscription", async () => {

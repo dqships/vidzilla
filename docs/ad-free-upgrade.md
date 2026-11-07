@@ -57,7 +57,9 @@ chrome.storage.sync)
 - **Cancelling or changing the card:** on a subscription, **Manage** in
   Settings calls `POST /api/portal` with the install ID. The server finds
   the customer from the subscription's metadata and opens a Stripe customer
-  portal session (return address: the website's home page).
+  portal session with Vidzilla's own portal configuration
+  (`PORTAL_CONFIGURATION` in `api/_stripe.js`; return address: the website's
+  home page).
 - **Subscriptions** stay ad-free while the subscription is `active`,
   `trialing` or `past_due`, until the paid period ends. **Lifetime** stays
   ad-free unless the payment is refunded.
@@ -99,9 +101,17 @@ and nothing else:
 | Invoices | Read (for the first-charge check, `chargedBefore` in `api/_stripe.js`) |
 | Customer portal | Write (for Manage, `api/portal.js`) |
 
-The customer portal must be turned on in live mode: Stripe dashboard,
-Settings, Billing, Customer portal. Allow customers to cancel subscriptions
-(at the end of the billing period) and update payment methods, then save.
+The customer portal uses its own live configuration, **Vidzilla**
+(`bpc_1UZA0DDyfH6JDnExHm1XDQLR`, made in the Dashboard on 2026-11-07), not
+the account default that Guppy and Beans share. It lets customers update
+their name, email, address and phone, see invoices, update payment methods,
+and cancel at the end of the billing period with a reason; plan changes and
+pauses are off. Headline "Manage your Vidzilla subscription", default return
+address https://vidzilla.followusai.com. Privacy and terms links come from
+the account's public details (followusai.com), since a configuration made in
+the Dashboard can't set its own. To change it: Stripe dashboard, Settings,
+Billing, Customer portal, the Vidzilla configuration. If it's ever deleted,
+remove `configuration` from `portalSession` to fall back to the default.
 
 Vercel (project `vidzilla`, Production):
 
@@ -133,9 +143,8 @@ Then copy its signing secret into `STRIPE_WEBHOOK_SECRET` in Vercel and
 redeploy. The first-charge check (`chargedBefore`) reads PaymentIntents,
 Subscriptions and Invoices with the restricted key. The
 buyer's answer in `cancellation_reason` comes from **Cancellation reason** in
-the live customer portal settings (the default configuration, which
-`api/portal.js` uses); it was on, with too_expensive, switched_service,
-unused and other, on 2026-11-06.
+the Vidzilla portal configuration (above): too_expensive, missing_features,
+switched_service, unused and other, as of 2026-11-07.
 
 ## Prices and the A/B/C test
 

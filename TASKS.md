@@ -19,6 +19,10 @@
 
 ## Done
 
+- 2026-11-07: Manage opens Vidzilla's own Stripe portal configuration
+  (`bpc_1UZA0DDyfH6JDnExHm1XDQLR`, "Vidzilla", made by DQ in the Dashboard)
+  instead of the account default shared with Guppy and Beans: its own
+  headline and return address, and a missing_features cancellation reason.
 - 2026-11-07: `paid` for a subscription's first charge after a free period
   (`invoice.paid` in `api/stripe-webhook.js`, `invoiceSale` and
   `chargedBefore` in `api/_stripe.js`); an earlier free plan no longer

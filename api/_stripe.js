@@ -292,6 +292,14 @@ export function endedSubscription(sub, nowS = Math.floor(Date.now() / 1000)) {
 }
 
 /**
+ * Vidzilla's own customer portal configuration ("Vidzilla", live mode): its
+ * headline and return address, and the cancellation reasons that
+ * `subscription_cancelled` reports. The account's default one belongs to
+ * all the products sharing the Stripe account.
+ */
+export const PORTAL_CONFIGURATION = "bpc_1UZA0DDyfH6JDnExHm1XDQLR";
+
+/**
  * A Stripe customer portal session for this install's subscription, where the
  * buyer can cancel it or change the card. The install ID finds the customer
  * through the subscription's metadata; undefined when it has no plan.
@@ -303,7 +311,7 @@ export async function portalSession(stripe, installId) {
   const [sub] = [...subs.data].sort((a, b) => Number(LIVE_SUBSCRIPTION.has(b.status)) - Number(LIVE_SUBSCRIPTION.has(a.status)) || b.created - a.created);
   const customer = typeof sub?.customer === "string" ? sub.customer : sub?.customer?.id;
   if (!customer) return undefined;
-  const session = await stripe("POST", "/v1/billing_portal/sessions", { customer, return_url: ORIGIN });
+  const session = await stripe("POST", "/v1/billing_portal/sessions", { customer, configuration: PORTAL_CONFIGURATION, return_url: ORIGIN });
   return session.url;
 }
 

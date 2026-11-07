@@ -111,9 +111,30 @@ Vercel (project `vidzilla`, Production):
 | `STRIPE_PRICE_YEARLY` | `price_1UVCY5DyfH6JDnExHp32eh4D`, used only when `STRIPE_PRICE_SUBSCRIPTIONS` is empty |
 | `STRIPE_PRICE_LIFETIME` | `price_1UVCYWDyfH6JDnExJGS2PSsl` |
 | `STRIPE_PROMO_CODES` | optional: launch offer codes, oldest first, such as `LAUNCH100,LAUNCH50` (see below) |
+| `STRIPE_WEBHOOK_SECRET` | the webhook endpoint's signing secret (`whsec_...`), saved as a Secret |
 
 Without them the API answers 503 and the upgrade page says checkout isn't set
-up; ads keep working either way.
+up; ads keep working either way. Without `STRIPE_WEBHOOK_SECRET` only the
+webhook answers 503 (Stripe keeps retrying), and `paid` still comes from the
+thanks page.
+
+The webhook (for `paid` and `subscription_cancelled`, see
+[Analytics](#analytics)): Stripe dashboard, live mode, Developers,
+Webhooks, **Add destination**, Your account, with
+
+- Endpoint URL `https://vidzilla.followusai.com/api/stripe-webhook`
+- Events `checkout.session.completed`,
+  `checkout.session.async_payment_succeeded`,
+  `customer.subscription.deleted`
+- API version: any; the fields it reads are the same in all current ones.
+
+Then copy its signing secret into `STRIPE_WEBHOOK_SECRET` in Vercel and
+redeploy. The restricted key needs nothing new (it already reads
+PaymentIntents and Subscriptions for the first-purchase search). The
+buyer's answer in `cancellation_reason` comes from **Cancellation reason** in
+the live customer portal settings (the default configuration, which
+`api/portal.js` uses); it was on, with too_expensive, switched_service,
+unused and other, on 2026-11-06.
 
 ## Prices and the A/B/C test
 
@@ -210,11 +231,11 @@ too: the kept checkout above keeps it counted.
 
 ## Analytics
 
-Four product events go to PostHog (project 708991, US cloud, "Discard
+Five product events go to PostHog (project 708991, US cloud, "Discard
 client IP data" on), all with the install ID as the person and
 `product: "vidzilla"`. The extension sends only the first two (that's all
-the privacy policy and the store listing promise for it); the license and
-checkout functions send the other two:
+the privacy policy and the store listing promise for it); the checkout,
+license and Stripe webhook functions send the other three:
 
 - `signed_up`: a new install (`chrome.runtime.onInstalled` with reason
   `install` in `src/sw/main.ts` calls `noteInstalled` in
@@ -238,13 +259,46 @@ checkout functions send the other two:
   `currency` when Stripe gives `amount_total`. `$geoip_disable: true`, no
   email. One per session (its `uuid` comes from the session ID), so pressing
   a plan's button twice counts twice.
-- `paid`: a first purchase. The thanks page calls `/api/license` with
-  `confirm=1` (once per browser); when the checkout says yes, the server
-  (`reportSale` in `api/license.js`, `firstSale` in `api/_stripe.js`) sends
-  `paid` with `plan`, `amount` (major units: 9 for $9.00, 0 for a 100% off
-  code), `currency` (lowercase), `variant` and the buyer's email as a person
-  property. Not sent for a checkout over a day old or when the install bought
-  before; renewals never reach it. There's no Stripe webhook.
+- `paid`: a first paid purchase, subscription or lifetime, sent from two places
+  as one event. The Stripe webhook (`api/stripe-webhook.js`) sends it on
+  `checkout.session.completed`, or on
+  `checkout.session.async_payment_succeeded` for a payment that clears later,
+  so it's counted even when the buyer closes the tab. The thanks page also
+  calls `/api/license` with `confirm=1` (once per browser); when the checkout
+  says yes, `reportSale` in `api/license.js` sends it too. Both build it with
+  `saleOf` in `api/_stripe.js`: `plan`, `amount` (major units: 9 for $9.00),
+  `currency` (lowercase), `variant` and the buyer's
+  email as a person property. Its `uuid` comes from the Checkout Session ID
+  and its timestamp is the session's creation, so the two reports (and
+  Stripe's retries) are the same event and PostHog keeps one. Not sent for
+  a checkout that charged nothing (a 100% off launch code), the same as
+  Beans and Guppy, so free claims show up only as `checkout_started` with
+  `amount: 0`. Not sent when the install bought before (a search of Stripe
+  for its install ID), even if that earlier one was free; the thanks page
+  also skips a checkout over a day old. Renewals never reach it, so a
+  subscription whose code ran out isn't counted when it first charges.
+- `subscription_cancelled`: a subscription that ended
+  (`customer.subscription.deleted` in `api/stripe-webhook.js`,
+  `endedSubscription` in `api/_stripe.js`, `subscriptionCancelledEvent` in
+  `api/_posthog.js`), with the same properties as Beans and Guppy:
+  `plan: "subscription"`, `variant`, `cancellation_reason` (the reason picked
+  in the customer portal, else Stripe's), `stripe_cancellation_reason`
+  (`cancellation_requested`, `payment_failed`, `payment_disputed`),
+  `days_subscribed` (start to end, trial included) and `ended_in_trial`. The
+  portal's free-text comment is never sent. Once per subscription: its `uuid`
+  comes from the subscription ID and its timestamp is when it ended. A
+  subscription whose first payment never went through
+  (`incomplete_expired`) isn't one.
+
+The Stripe account is shared with Guppy and Beans, so the webhook only acts
+on checkouts and subscriptions carrying a Vidzilla install ID
+(`client_reference_id` and `metadata.install_id`, from `checkoutParams`;
+anything tagged with another `metadata.app` is skipped) and acknowledges the
+rest with 200. Test-mode events are ignored. It checks the
+`Stripe-Signature` header itself (HMAC-SHA256, five-minute tolerance, no
+Stripe SDK) and answers 500 when Stripe or PostHog fails, so Stripe retries
+for up to three days; nothing is stored. Its log line is
+`stripe webhook <type> <event id> failed`.
 
 The website sends two more, anonymously, from the server, so the site keeps
 no PostHog script and sets no cookies (`api/_web-analytics.js`):

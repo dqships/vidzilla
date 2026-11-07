@@ -176,10 +176,16 @@ describe("paid", () => {
     expect(e.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
-  it("reports a subscription, and a launch code that made it free as 0", async () => {
-    const sale = await firstSale(stripeWith({ mode: "subscription", amount_total: 0, currency: "usd", subscription: "sub_1" }, empty, { data: [{ id: "sub_1", created: CREATED }] }), ID, SESSION, NOW);
-    expect(sale).toMatchObject({ plan: "subscription", amount: 0, currency: "usd", email: undefined });
+  it("reports a subscription, without an email when Stripe has none", async () => {
+    const sale = await firstSale(stripeWith({ mode: "subscription", amount_total: 700, currency: "usd", subscription: "sub_1" }, empty, { data: [{ id: "sub_1", created: CREATED }] }), ID, SESSION, NOW);
+    expect(sale).toMatchObject({ plan: "subscription", amount: 7, currency: "usd", email: undefined });
     expect(paidEvent(ID, sale).properties.$set).toBeUndefined();
+  });
+
+  it("isn't reported when a launch code made the checkout free, as in Beans and Guppy", async () => {
+    const free = stripeWith({ mode: "subscription", amount_total: 0, currency: "usd", subscription: "sub_1" }, empty, { data: [{ id: "sub_1", created: CREATED }] });
+    expect(await firstSale(free, ID, SESSION, NOW)).toBeUndefined();
+    expect(await firstSale(stripeWith({ ...lifetime, amount_total: 0, payment_intent: null, payment_status: "no_payment_required" }), ID, SESSION, NOW)).toBeUndefined();
   });
 
   it("isn't reported for a later purchase by the same install", async () => {

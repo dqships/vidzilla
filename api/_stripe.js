@@ -150,13 +150,43 @@ export function majorUnits(amount, currency) {
  * undefined when it isn't this install's first purchase. Renewals never come
  * here (only a checkout does), and a later purchase by the same install (a
  * new subscription after one lapsed, lifetime after a subscription) has an
- * earlier one carrying its install ID. A 100% off launch code makes a sale
- * of 0. The amount is what the checkout charged, discounts included.
+ * earlier one carrying its install ID. A checkout that charged nothing (a
+ * 100% off launch code) isn't a sale, as in Beans and Guppy. The amount is
+ * what the checkout charged, discounts included.
  */
 export async function firstSale(stripe, installId, sessionId, now = Date.now()) {
   const session = await stripe("GET", `/v1/checkout/sessions/${sessionId}`);
-  if (session.client_reference_id !== installId || session.status !== "complete" || session.payment_status === "unpaid") return undefined;
+  if (session.client_reference_id !== installId) return undefined;
   if (now - session.created * 1000 > SALE_WINDOW_MS) return undefined;
+  return saleOf(stripe, { ...session, id: session.id ?? sessionId });
+}
+
+/**
+ * Did Vidzilla's checkout make this session? The Stripe account is shared
+ * with other products, and only Vidzilla tags a checkout with an install ID
+ * (checkoutParams above).
+ */
+export function isVidzillaSession(session) {
+  const installId = session?.client_reference_id;
+  return isInstallId(installId) && session.metadata?.install_id === installId && (!session.metadata?.app || session.metadata.app === "vidzilla");
+}
+
+/** Did Vidzilla's checkout make this subscription? It carries the install ID (subscription_data above). */
+export function isVidzillaSubscription(sub) {
+  return isInstallId(sub?.metadata?.install_id) && (!sub.metadata.app || sub.metadata.app === "vidzilla");
+}
+
+/**
+ * The sale a finished checkout made, as firstSale() describes, for the thanks
+ * page and the Stripe webhook alike (api/stripe-webhook.js), so both report
+ * the same sale as the same event. Undefined while it's unpaid or when the
+ * install bought before.
+ */
+export async function saleOf(stripe, session) {
+  const installId = session.client_reference_id;
+  if (!isInstallId(installId) || session.status !== "complete" || session.payment_status === "unpaid") return undefined;
+  // Nothing was charged (a 100% off launch code): not a sale, as Beans and Guppy count it.
+  if (!(typeof session.amount_total === "number" && session.amount_total > 0)) return undefined;
   const id = installId.replace(/'/g, "");
   const [payments, subs] = await Promise.all([
     stripe("GET", "/v1/payment_intents/search", { query: `metadata['install_id']:'${id}' AND status:'succeeded'` }),
@@ -166,13 +196,42 @@ export async function firstSale(stripe, installId, sessionId, now = Date.now()) 
   if (earlier(payments, session.payment_intent) || earlier(subs, session.subscription)) return undefined;
   const currency = String(session.currency ?? "usd").toLowerCase();
   return {
-    id: session.id ?? sessionId,
+    id: session.id,
     plan: session.mode === "subscription" ? "subscription" : "lifetime",
-    amount: majorUnits(session.amount_total ?? 0, currency),
+    amount: majorUnits(session.amount_total, currency),
     currency,
     email: session.customer_details?.email ?? undefined,
     variant: session.metadata?.variant,
     at: session.created * 1000,
+  };
+}
+
+/**
+ * A Vidzilla subscription that has ended, reduced to what
+ * `subscription_cancelled` needs (api/_posthog.js), or null while it's still
+ * running or never started (`incomplete_expired`). `reason` is Stripe's
+ * `cancellation_details.reason` (cancellation_requested, payment_failed,
+ * payment_disputed) and `feedback` the reason picked in the customer portal
+ * (too_expensive, missing_features...); the free-text comment is left out.
+ * `daysSubscribed` counts from the start, trial included, to the end. The
+ * same shape as Beans and Guppy send.
+ */
+export function endedSubscription(sub, nowS = Math.floor(Date.now() / 1000)) {
+  if (sub?.status !== "canceled" || !isVidzillaSubscription(sub)) return null;
+  const seconds = (value) => (typeof value === "number" ? value : null);
+  const start = seconds(sub.start_date) ?? seconds(sub.created);
+  const end = seconds(sub.ended_at) ?? seconds(sub.canceled_at) ?? nowS;
+  const trialEnd = seconds(sub.trial_end);
+  const details = sub.cancellation_details ?? {};
+  return {
+    subscriptionId: String(sub.id),
+    installId: sub.metadata.install_id,
+    variant: typeof sub.metadata.variant === "string" ? sub.metadata.variant : undefined,
+    reason: typeof details.reason === "string" ? details.reason : null,
+    feedback: typeof details.feedback === "string" ? details.feedback : null,
+    daysSubscribed: start === null ? null : Math.max(0, Math.round((end - start) / 86_400)),
+    endedInTrial: trialEnd !== null && end <= trialEnd,
+    at: end * 1000,
   };
 }
 

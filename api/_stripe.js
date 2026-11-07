@@ -150,8 +150,9 @@ export function majorUnits(amount, currency) {
  * undefined when it isn't this install's first purchase. Renewals never come
  * here (only a checkout does), and a later purchase by the same install (a
  * new subscription after one lapsed, lifetime after a subscription) has an
- * earlier one carrying its install ID. A 100% off launch code makes a sale
- * of 0. The amount is what the checkout charged, discounts included.
+ * earlier one carrying its install ID. A checkout that charged nothing (a
+ * 100% off launch code) isn't a sale, as in Beans and Guppy. The amount is
+ * what the checkout charged, discounts included.
  */
 export async function firstSale(stripe, installId, sessionId, now = Date.now()) {
   const session = await stripe("GET", `/v1/checkout/sessions/${sessionId}`);
@@ -184,6 +185,8 @@ export function isVidzillaSubscription(sub) {
 export async function saleOf(stripe, session) {
   const installId = session.client_reference_id;
   if (!isInstallId(installId) || session.status !== "complete" || session.payment_status === "unpaid") return undefined;
+  // Nothing was charged (a 100% off launch code): not a sale, as Beans and Guppy count it.
+  if (!(typeof session.amount_total === "number" && session.amount_total > 0)) return undefined;
   const id = installId.replace(/'/g, "");
   const [payments, subs] = await Promise.all([
     stripe("GET", "/v1/payment_intents/search", { query: `metadata['install_id']:'${id}' AND status:'succeeded'` }),
@@ -195,7 +198,7 @@ export async function saleOf(stripe, session) {
   return {
     id: session.id,
     plan: session.mode === "subscription" ? "subscription" : "lifetime",
-    amount: majorUnits(session.amount_total ?? 0, currency),
+    amount: majorUnits(session.amount_total, currency),
     currency,
     email: session.customer_details?.email ?? undefined,
     variant: session.metadata?.variant,

@@ -2,21 +2,19 @@
 
 ## Next
 
-- Stripe webhook (live mode): Developers, Webhooks, Add destination, endpoint
-  `https://vidzilla.followusai.com/api/stripe-webhook`, events
-  `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-  `customer.subscription.deleted`. Put its signing secret in Vercel as
-  `STRIPE_WEBHOOK_SECRET` (Production, Secret) and redeploy. Details in
-  `docs/ad-free-upgrade.md` (Settings it needs).
+- Merge the Stripe webhook PR. The live endpoint (`we_1UZ9bEDyfH6JDnExNK9yLEFj`,
+  created 2026-11-07 with the three events) answers 404 until then; Stripe
+  retries a failed delivery for up to three days. Check that
+  `STRIPE_WEBHOOK_SECRET` is set in Vercel Production before the deploy.
 - After the first real sale or cancellation, check PostHog 708991 for one
   `paid` / `subscription_cancelled` with `product: "vidzilla"`.
 
 ## Decisions
 
-- 2026-11-06: Keep sending `paid` for a $0 checkout (100% off launch code),
-  with `amount: 0`, from both the thanks page and the Stripe webhook. Beans
-  and Guppy skip $0 invoices, so the weekly report counts Vidzilla's free
-  claims as paid and theirs not; that difference is accepted.
+- 2026-11-07: No `paid` for a $0 checkout (100% off launch code), from the
+  thanks page or the Stripe webhook, to match Beans and Guppy in the weekly
+  report. Free claims still show as `checkout_started` with `amount: 0`.
+  (Replaces the 2026-11-06 choice to send them with `amount: 0`.)
 
 ## Done
 

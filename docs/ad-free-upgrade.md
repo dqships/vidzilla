@@ -259,20 +259,24 @@ license and Stripe webhook functions send the other three:
   `currency` when Stripe gives `amount_total`. `$geoip_disable: true`, no
   email. One per session (its `uuid` comes from the session ID), so pressing
   a plan's button twice counts twice.
-- `paid`: a first purchase, subscription or lifetime, sent from two places
+- `paid`: a first paid purchase, subscription or lifetime, sent from two places
   as one event. The Stripe webhook (`api/stripe-webhook.js`) sends it on
   `checkout.session.completed`, or on
   `checkout.session.async_payment_succeeded` for a payment that clears later,
   so it's counted even when the buyer closes the tab. The thanks page also
   calls `/api/license` with `confirm=1` (once per browser); when the checkout
   says yes, `reportSale` in `api/license.js` sends it too. Both build it with
-  `saleOf` in `api/_stripe.js`: `plan`, `amount` (major units: 9 for $9.00,
-  0 for a 100% off code), `currency` (lowercase), `variant` and the buyer's
+  `saleOf` in `api/_stripe.js`: `plan`, `amount` (major units: 9 for $9.00),
+  `currency` (lowercase), `variant` and the buyer's
   email as a person property. Its `uuid` comes from the Checkout Session ID
   and its timestamp is the session's creation, so the two reports (and
-  Stripe's retries) are the same event and PostHog keeps one. Not sent when
-  the install bought before (a search of Stripe for its install ID); the
-  thanks page also skips a checkout over a day old. Renewals never reach it.
+  Stripe's retries) are the same event and PostHog keeps one. Not sent for
+  a checkout that charged nothing (a 100% off launch code), the same as
+  Beans and Guppy, so free claims show up only as `checkout_started` with
+  `amount: 0`. Not sent when the install bought before (a search of Stripe
+  for its install ID), even if that earlier one was free; the thanks page
+  also skips a checkout over a day old. Renewals never reach it, so a
+  subscription whose code ran out isn't counted when it first charges.
 - `subscription_cancelled`: a subscription that ended
   (`customer.subscription.deleted` in `api/stripe-webhook.js`,
   `endedSubscription` in `api/_stripe.js`, `subscriptionCancelledEvent` in

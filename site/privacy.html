@@ -91,7 +91,7 @@
         receipts, refunds and support. When you choose a plan and our server opens Stripe's checkout for you, it reports
         that to PostHog as one "checkout_started" event: the install ID, the plan, your copy's price group, the launch
         code applied if there is one, and the amount and currency the checkout will charge. It carries no email or card
-        details. When your first purchase goes through, our server also reports it to PostHog as one "paid" event: the
+        details. When your first payment goes through, our server also reports it to PostHog as one "paid" event: the
         install ID, the plan, the amount and currency, and the email address you gave Stripe. If your subscription ends,
         it reports that as one "subscription_cancelled" event: the install ID, your copy's price group, how many days it
         lasted, whether it ended during a free trial, and the reason you picked when cancelling or Stripe's (such as a

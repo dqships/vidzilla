@@ -102,6 +102,13 @@ describe("paid from the webhook", () => {
     expect(sent[0]!.properties).toMatchObject({ plan: "subscription", amount: 7, currency: "usd", variant: "c" });
   });
 
+  it("isn't sent for a checkout a 100% off code made free", async () => {
+    const send = vi.fn();
+    const free = { ...subscriptionSession, amount_total: 0 };
+    expect(await handleEvent(event("checkout.session.completed", free), { stripe: stripeWith(), send })).toMatch(/^ignored/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("waits for a delayed payment to succeed", async () => {
     const send = vi.fn();
     const pending = { ...lifetimeSession, payment_status: "unpaid" };

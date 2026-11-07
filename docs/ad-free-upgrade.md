@@ -96,6 +96,7 @@ and nothing else:
 | Subscriptions | Read |
 | Prices, Products, Customers | Read |
 | Coupons, Promotion codes | Read (for launch offers, `api/_promos.js`) |
+| Invoices | Read (for the first-charge check, `chargedBefore` in `api/_stripe.js`) |
 | Customer portal | Write (for Manage, `api/portal.js`) |
 
 The customer portal must be turned on in live mode: Stripe dashboard,
@@ -125,12 +126,12 @@ Webhooks, **Add destination**, Your account, with
 - Endpoint URL `https://vidzilla.followusai.com/api/stripe-webhook`
 - Events `checkout.session.completed`,
   `checkout.session.async_payment_succeeded`,
-  `customer.subscription.deleted`
+  `customer.subscription.deleted`, `invoice.paid`
 - API version: any; the fields it reads are the same in all current ones.
 
 Then copy its signing secret into `STRIPE_WEBHOOK_SECRET` in Vercel and
-redeploy. The restricted key needs nothing new (it already reads
-PaymentIntents and Subscriptions for the first-purchase search). The
+redeploy. The first-charge check (`chargedBefore`) reads PaymentIntents,
+Subscriptions and Invoices with the restricted key. The
 buyer's answer in `cancellation_reason` comes from **Cancellation reason** in
 the live customer portal settings (the default configuration, which
 `api/portal.js` uses); it was on, with too_expensive, switched_service,
@@ -273,10 +274,17 @@ license and Stripe webhook functions send the other three:
   Stripe's retries) are the same event and PostHog keeps one. Not sent for
   a checkout that charged nothing (a 100% off launch code), the same as
   Beans and Guppy, so free claims show up only as `checkout_started` with
-  `amount: 0`. Not sent when the install bought before (a search of Stripe
-  for its install ID), even if that earlier one was free; the thanks page
-  also skips a checkout over a day old. Renewals never reach it, so a
-  subscription whose code ran out isn't counted when it first charges.
+  `amount: 0`. Not sent when the install was charged before
+  (`chargedBefore`: a paid lifetime payment carrying its install ID, or a
+  paid invoice above 0 on one of its subscriptions); an earlier free plan
+  doesn't count. The thanks page also skips a checkout over a day old.
+  A subscription that started free and later charges (a code that covers
+  only the first months) sends `paid` from `invoice.paid` instead
+  (`invoiceSale`): the first invoice above 0 that isn't a subscription's
+  first (`billing_reason` other than `subscription_create`, which its
+  checkout reports), when the install was never charged before. Its `uuid`
+  comes from the invoice ID and its timestamp is when it was paid; `amount`
+  is what was charged and the email is the invoice's.
 - `subscription_cancelled`: a subscription that ended
   (`customer.subscription.deleted` in `api/stripe-webhook.js`,
   `endedSubscription` in `api/_stripe.js`, `subscriptionCancelledEvent` in
@@ -293,7 +301,8 @@ license and Stripe webhook functions send the other three:
 The Stripe account is shared with Guppy and Beans, so the webhook only acts
 on checkouts and subscriptions carrying a Vidzilla install ID
 (`client_reference_id` and `metadata.install_id`, from `checkoutParams`;
-anything tagged with another `metadata.app` is skipped) and acknowledges the
+anything tagged with another `metadata.app` is skipped; an invoice is
+judged by its subscription's metadata) and acknowledges the
 rest with 200. Test-mode events are ignored. It checks the
 `Stripe-Signature` header itself (HMAC-SHA256, five-minute tolerance, no
 Stripe SDK) and answers 500 when Stripe or PostHog fails, so Stripe retries

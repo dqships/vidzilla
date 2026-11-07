@@ -2,12 +2,9 @@
 
 ## Next
 
-- Merge the Stripe webhook PR. The live endpoint (`we_1UZ9bEDyfH6JDnExNK9yLEFj`,
-  created 2026-11-07 with the three events) answers 404 until then; Stripe
-  retries a failed delivery for up to three days. Check that
-  `STRIPE_WEBHOOK_SECRET` is set in Vercel Production before the deploy.
-- After the first real sale or cancellation, check PostHog 708991 for one
-  `paid` / `subscription_cancelled` with `product: "vidzilla"`.
+- After the first real sale, renewal or cancellation, check PostHog 708991
+  for one `paid` / `subscription_cancelled` with `product: "vidzilla"`, and
+  the webhook's deliveries in Stripe (Developers, Webhooks, Vercel) for 200s.
 
 ## Decisions
 
@@ -15,9 +12,23 @@
   thanks page or the Stripe webhook, to match Beans and Guppy in the weekly
   report. Free claims still show as `checkout_started` with `amount: 0`.
   (Replaces the 2026-11-06 choice to send them with `amount: 0`.)
+- 2026-11-07: Count `paid` at an install's first real charge, wherever it
+  happens: its checkout, or a later renewal once a launch code that covers
+  only the first months runs out (`invoice.paid`), since time-limited
+  discounts are planned.
 
 ## Done
 
+- 2026-11-07: `paid` for a subscription's first charge after a free period
+  (`invoice.paid` in `api/stripe-webhook.js`, `invoiceSale` and
+  `chargedBefore` in `api/_stripe.js`); an earlier free plan no longer
+  blocks a later real purchase from counting. The live webhook
+  (`we_1UZ9bEDyfH6JDnExNK9yLEFj`) now sends `invoice.paid`, and the
+  restricted key reads Invoices (both added by DQ 2026-11-07).
+- 2026-11-07: Stripe webhook PR (dqships/vidzilla#54) merged and live: the
+  endpoint answers 400 to an unsigned request, `STRIPE_WEBHOOK_SECRET` is set
+  in Vercel Production, and the Stripe endpoint has its events. `paid` is no
+  longer sent for a $0 checkout.
 - 2026-11-06: Stripe webhook for PostHog (`api/stripe-webhook.js`): `paid` on
   an install's first purchase from `checkout.session.completed` /
   `async_payment_succeeded`, so buyers who close the tab are counted (same

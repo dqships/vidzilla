@@ -73,19 +73,21 @@ describe("activated", () => {
   });
 });
 
-type List = { data: { id: string; created: number }[] };
+type List = { data: { id: string; created: number; amount_paid?: number; amount_received?: number }[] };
 const empty: List = { data: [] };
 const CREATED = 1_800_000_000; // seconds, as Stripe gives them
 const NOW = CREATED * 1000 + 60_000;
 const SESSION = "cs_live_abcdefghijkl";
 
-function stripeWith(session: Record<string, unknown>, payments: List = empty, subs: List = empty) {
+function stripeWith(session: Record<string, unknown>, payments: List = empty, subs: List = empty, invoices: Record<string, List> = {}) {
   const routes: Record<string, unknown> = {
     [`/v1/checkout/sessions/${SESSION}`]: { id: SESSION, client_reference_id: ID, status: "complete", payment_status: "paid", created: CREATED, ...session },
     "/v1/payment_intents/search": payments,
     "/v1/subscriptions/search": subs,
   };
-  return async (_method: string, path: string) => {
+  return async (_method: string, path: string, params: Record<string, unknown> = {}) => {
+    // Paid invoices, by the subscription they bill.
+    if (path === "/v1/invoices") return invoices[String(params.subscription)] ?? empty;
     if (!(path in routes)) throw new Error(`unexpected ${path}`);
     return routes[path];
   };
@@ -189,12 +191,22 @@ describe("paid", () => {
   });
 
   it("isn't reported for a later purchase by the same install", async () => {
-    const resubscribed = stripeWith({ mode: "subscription", amount_total: 99, currency: "usd", subscription: "sub_2" }, empty, {
-      data: [{ id: "sub_1", created: CREATED - 86_400 * 400 }, { id: "sub_2", created: CREATED }],
-    });
+    const resubscribed = stripeWith(
+      { mode: "subscription", amount_total: 99, currency: "usd", subscription: "sub_2" },
+      empty,
+      { data: [{ id: "sub_1", created: CREATED - 86_400 * 400 }, { id: "sub_2", created: CREATED }] },
+      { sub_1: { data: [{ id: "in_1", created: CREATED - 86_400 * 400, amount_paid: 99 }] } },
+    );
     expect(await firstSale(resubscribed, ID, SESSION, NOW)).toBeUndefined();
-    const lifetimeAfterSub = stripeWith(lifetime, { data: [{ id: "pi_1", created: CREATED }] }, { data: [{ id: "sub_1", created: CREATED - 100 }] });
+    const lifetimeAfterSub = stripeWith(lifetime, { data: [{ id: "pi_1", created: CREATED }] }, { data: [{ id: "sub_1", created: CREATED - 100 }] }, { sub_1: { data: [{ id: "in_1", created: CREATED - 100, amount_paid: 700 }] } });
     expect(await firstSale(lifetimeAfterSub, ID, SESSION, NOW)).toBeUndefined();
+    const lifetimeAfterLifetime = stripeWith(lifetime, { data: [{ id: "pi_0", created: CREATED - 100, amount_received: 900 }, { id: "pi_1", created: CREATED }] });
+    expect(await firstSale(lifetimeAfterLifetime, ID, SESSION, NOW)).toBeUndefined();
+  });
+
+  it("is reported when the install's earlier plan never charged (a 100% off code)", async () => {
+    const afterFree = stripeWith(lifetime, { data: [{ id: "pi_1", created: CREATED }] }, { data: [{ id: "sub_1", created: CREATED - 86_400 * 30 }] }, { sub_1: { data: [{ id: "in_1", created: CREATED - 86_400 * 30, amount_paid: 0 }] } });
+    expect(await firstSale(afterFree, ID, SESSION, NOW)).toMatchObject({ plan: "lifetime", amount: 9 });
   });
 
   it("isn't reported from an old thanks page, another install's checkout or an unfinished one", async () => {

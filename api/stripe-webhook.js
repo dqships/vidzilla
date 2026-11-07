@@ -2,7 +2,10 @@
 // Reports Vidzilla's sales and cancellations to PostHog straight from Stripe,
 // so they're counted even when the buyer never reaches the thanks page:
 //   checkout.session.completed,             `paid` for an install's first
-//   checkout.session.async_payment_succeeded  purchase (subscription or lifetime)
+//   checkout.session.async_payment_succeeded  charge (subscription or lifetime)
+//   invoice.paid                            `paid` for a renewal that is the
+//                                           first charge (after a launch code
+//                                           made the first periods free)
 //   customer.subscription.deleted           `subscription_cancelled`
 // The Stripe account is shared with other products: anything without
 // Vidzilla's install ID is acknowledged and ignored, and so are test-mode
@@ -12,7 +15,7 @@
 // Needs STRIPE_WEBHOOK_SECRET (the endpoint's signing secret, whsec_...).
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { capture, paidEvent, subscriptionCancelledEvent } from "./_posthog.js";
-import { endedSubscription, isVidzillaSession, json, saleOf, stripeClient } from "./_stripe.js";
+import { endedSubscription, invoiceSale, isVidzillaSession, json, saleOf, stripeClient } from "./_stripe.js";
 
 /** Stripe's default: a signature older than five minutes is a replay. */
 export const WEBHOOK_TOLERANCE_S = 300;
@@ -49,6 +52,12 @@ export async function handleEvent(event, { stripe, send = capture }) {
     const sale = await saleOf(stripe, object);
     if (!sale) return "ignored: unpaid or not a first purchase";
     await send(paidEvent(object.client_reference_id, sale));
+    return "paid";
+  }
+  if (event?.type === "invoice.paid") {
+    const sale = await invoiceSale(stripe, object);
+    if (!sale) return "ignored: not a first charge on a Vidzilla renewal";
+    await send(paidEvent(sale.installId, sale));
     return "paid";
   }
   if (event?.type === "customer.subscription.deleted") {

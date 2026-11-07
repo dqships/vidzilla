@@ -107,10 +107,14 @@ the account default that Guppy and Beans share. It lets customers update
 their name, email, address and phone, see invoices, update payment methods,
 and cancel at the end of the billing period with a reason; plan changes and
 pauses are off. Headline "Manage your Vidzilla subscription", default return
-address https://vidzilla.followusai.com. Privacy and terms links come from
-the account's public details (followusai.com), since a configuration made in
-the Dashboard can't set its own. To change it: Stripe dashboard, Settings,
-Billing, Customer portal, the Vidzilla configuration. If it's ever deleted,
+address https://vidzilla.followusai.com, privacy link
+https://vidzilla.followusai.com/privacy, terms link
+https://vidzilla.followusai.com/terms, and `metadata.app: "vidzilla"` like
+the other products' configurations. The Dashboard can't set the links or the
+metadata, so they were set with the API on 2026-11-07 (`stripe
+billing_portal configurations update` with Billing write); change them the
+same way. Everything else: Stripe dashboard, Settings, Billing, Customer
+portal, the Vidzilla configuration. If it's ever deleted,
 remove `configuration` from `portalSession` to fall back to the default.
 
 Vercel (project `vidzilla`, Production):

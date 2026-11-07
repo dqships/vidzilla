@@ -11,12 +11,12 @@
 - After the first real sale or cancellation, check PostHog 708991 for one
   `paid` / `subscription_cancelled` with `product: "vidzilla"`.
 
-## Open decisions
+## Decisions
 
-- `paid` is sent for a $0 checkout (100% off launch code) with `amount: 0`,
-  as since 2026-11-04. Beans and Guppy skip $0 invoices, so the weekly
-  report counts Vidzilla's free claims as paid and the others' not. Keep,
-  or skip $0 like them?
+- 2026-11-06: Keep sending `paid` for a $0 checkout (100% off launch code),
+  with `amount: 0`, from both the thanks page and the Stripe webhook. Beans
+  and Guppy skip $0 invoices, so the weekly report counts Vidzilla's free
+  claims as paid and theirs not; that difference is accepted.
 
 ## Done
 

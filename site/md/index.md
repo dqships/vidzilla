@@ -1,6 +1,6 @@
 # Save the video you're watching.
 
-Vidzilla is a free Chrome extension that finds the video playing on a page and saves it to your computer as a file, at the quality the site sent. Nothing is re-encoded, and there is nothing to sign up for.
+Vidzilla is a free video downloader: a Chrome extension that finds the video playing on a page and saves it to your computer as a file, at the quality the site sent. Nothing is re-encoded, and there is nothing to sign up for.
 
 - [Add Vidzilla to Chrome]({{origin}}/go/chrome-web-store?from=md-home) (Chrome 116 or later)
 - No account, browsing never tracked

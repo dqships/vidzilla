@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -15,7 +15,7 @@ import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { wantsMarkdown } from "../../middleware.js";
 import { serveSite } from "../../scripts/serve-site.mjs";
-import { origin as siteOrigin, pages } from "../../site/pages.mjs";
+import { productTerms, origin as siteOrigin, pages } from "../../site/pages.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PATH ?? "playwright");
@@ -104,13 +104,60 @@ test("robots.txt, sitemap.xml and llms.txt", async () => {
 
   const llms = await (await get("/llms.txt")).text();
   assert.match(llms, /^# Vidzilla\n\n> /);
-  const links = [...llms.matchAll(/\]\((https?:[^)]+)\)/g)].map((m) => m[1]).filter((u) => u.startsWith(siteOrigin));
-  assert.equal(links.length, pages.length);
+  const links = [...new Set([...llms.matchAll(/\]\((https?:[^)]+)\)/g)].map((m) => m[1]).filter((u) => u.startsWith(siteOrigin)))];
+  for (const p of pages) assert.ok(links.includes(`${siteOrigin}/${p.file}.md`), `llms.txt links ${p.file}.md`);
   for (const link of links) {
     const res = await fetch(local(link));
     assert.equal(res.status, 200, link);
     assert.match(res.headers.get("content-type"), /^text\/markdown/, link);
   }
+});
+
+// The llms.txt format (llmstxt.org): one H1, a blockquote summary, free text
+// with no headings, then H2 sections that are lists of [name](url): notes,
+// with "Optional" last.
+test("llms.txt follows the format and tells agents when to use Vidzilla", async () => {
+  const llms = await (await get("/llms.txt")).text();
+  const headings = [...llms.matchAll(/^(#+) (.*)$/gm)].map((m) => [m[1].length, m[2]]);
+  assert.deepEqual(headings[0], [1, "Vidzilla"]);
+  assert.ok(headings.slice(1).every(([level]) => level === 2), "only H2s after the H1");
+  assert.deepEqual(headings.slice(1).map(([, name]) => name), ["When to use Vidzilla", "When not to use Vidzilla", "Pages", "Optional"]);
+
+  const sections = Object.fromEntries(llms.split(/^## /m).slice(1).map((part) => [part.slice(0, part.indexOf("\n")), part.slice(part.indexOf("\n")).trim()]));
+  for (const [name, body] of Object.entries(sections)) {
+    for (const line of body.split("\n")) assert.match(line, /^- \[[^\]]+\]\(https:\/\/[^)\s]+\)(: .+)?$/, `${name}: ${line}`);
+  }
+  assert.ok(sections["When to use Vidzilla"].split("\n").length >= 4, "names several best-fit jobs");
+  for (const job of ["HLS", "live stream", "direct video link"]) assert.match(sections["When to use Vidzilla"], new RegExp(job, "i"));
+  for (const limit of ["DRM", "YouTube", "Automated"]) assert.match(sections["When not to use Vidzilla"], new RegExp(limit));
+
+  // How an agent should call it, before the first section.
+  const intro = llms.slice(0, llms.indexOf("\n## "));
+  assert.match(intro, /Notes for agents: Vidzilla has no API/);
+  const store = intro.match(new RegExp(`${siteOrigin}/go/chrome-web-store\\?from=llms`))?.[0];
+  assert.ok(store, "links the store");
+  // The local server has no API; Vercel rewrites this path to api/store-link.js.
+  const rewrites = JSON.parse(readFileSync(new URL("../../vercel.json", import.meta.url), "utf8")).rewrites;
+  assert.ok(rewrites.some((r) => r.source === "/go/chrome-web-store" && r.destination === "/api/store-link"));
+  assert.match(intro, new RegExp(`${siteOrigin}/#paste`));
+  assert.match(await (await get("/")).text(), /<section id="paste"/);
+});
+
+test("the home page names its product terms in JSON-LD, the title and its text", async () => {
+  const html = await (await get("/")).text();
+  const graph = JSON.parse(attr(html, /<script type="application\/ld\+json">(.*?)<\/script>/))["@graph"];
+  const app = graph.find((n) => n["@type"] === "WebApplication");
+  assert.equal(app.keywords, productTerms.join(", "));
+  assert.equal(productTerms[0], "video downloader");
+  const title = attr(html, /<title>([^<]*)<\/title>/);
+  assert.match(title, new RegExp(`^Vidzilla ${productTerms[0]}`), "the title pairs the brand with the main product term");
+  const text = html
+    .replace(/<head>[\s\S]*?<\/head>|<script[\s\S]*?<\/script>|<template[\s\S]*?<\/template>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  for (const term of productTerms) assert.ok(text.includes(term.toLowerCase()), `"${term}" is in the home page's text`);
+  assert.match(await (await get("/", { Accept: "text/markdown" })).text(), new RegExp(productTerms[0]));
 });
 
 test("markdown content negotiation", async () => {

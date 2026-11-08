@@ -19,6 +19,12 @@ export const pages = [
 
 export const repoUrl = "https://github.com/dqships/vidzilla";
 
+// What Vidzilla is, in the words people search with. They go in the JSON-LD
+// `keywords`, most important first, and search and agent tools pair the first
+// with the brand ("Vidzilla video downloader"). The build fails unless each
+// one appears in the home page's visible text.
+export const productTerms = ["video downloader", "Chrome extension"];
+
 // The 404 body for agents that ask for markdown. The middleware returns it
 // as is, and the build writes it to 404.md.
 export const notFoundMarkdown = `# Page not found

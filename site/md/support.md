@@ -18,6 +18,10 @@ Click the puzzle piece in Chrome's toolbar and pin Vidzilla, so it stays next to
 
 Google Chrome 116 or later, on Windows, macOS, Linux and ChromeOS.
 
+### Does it save YouTube videos?
+
+No. The Chrome Web Store doesn't allow extensions that download from YouTube, so Vidzilla leaves it alone.
+
 ### Does it cost anything?
 
 No. Vidzilla is [free]({{origin}}/pricing), with no account and no limits. It shows a short ad every few downloads, which you can [turn off]({{origin}}/upgrade) for a small subscription or {{price.lifetime}}.

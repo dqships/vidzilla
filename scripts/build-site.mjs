@@ -3,10 +3,11 @@
 // paste-a-link downloader bundled with the extension's download worker.
 // Each page gets the shared parts (site/partials/), its canonical, Open Graph,
 // Twitter and JSON-LD tags, and a markdown twin (site/md/). The root files
-// for crawlers and agents (robots.txt, sitemap.xml, llms.txt) are written
-// from site/pages.mjs. The build fails if a page breaks the launch rules
-// (title and description length, one h1) or if an inline script isn't
-// allowed by the Content-Security-Policy in vercel.json.
+// for crawlers and agents (robots.txt, sitemap.xml, llms.txt with its
+// when-to-use guidance) are written from site/pages.mjs. The build fails if a
+// page breaks the launch rules (title and description length, one h1, the
+// product terms on the home page) or if an inline script isn't allowed by the
+// Content-Security-Policy in vercel.json.
 // Prices come from Stripe when the build has the key (Vercel's production
 // builds), so a price changed in Vercel's settings shows after a redeploy;
 // pages write them as {{price.subscription}} and the like (api/_prices.js).
@@ -18,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
 import { DEFAULT_OFFER, describeOffer, offerFor } from "../api/_prices.js";
 import { stripeClient } from "../api/_stripe.js";
-import { notFoundMarkdown, origin, pages, repoUrl, supportEmail } from "../site/pages.mjs";
+import { notFoundMarkdown, origin, pages, productTerms, repoUrl, supportEmail } from "../site/pages.mjs";
 import { release } from "../site/release.js";
 import { bundleEntries } from "./site-inputs.mjs";
 
@@ -99,6 +100,7 @@ function structuredData(page, title, description) {
         image: `${origin}/brand/og-image.png`,
         applicationCategory: "MultimediaApplication",
         applicationSubCategory: "Browser extension",
+        keywords: productTerms.join(", "),
         operatingSystem: "Windows, macOS, Linux, ChromeOS",
         browserRequirements: "Requires Google Chrome 116 or later",
         isAccessibleForFree: true,
@@ -144,6 +146,13 @@ function meta(page, title, description) {
   return tags.filter(Boolean).join("\n    ");
 }
 
+/** A page's text as a reader sees it: no head, scripts, styles, templates or tags. */
+const visibleText = (html) =>
+  html
+    .replace(/<head>[\s\S]*?<\/head>|<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<template[\s\S]*?<\/template>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
+
 function buildPage(file, page) {
   let html = read(`site/${file}.html`);
   const title = html.match(/<title>([^<]*)<\/title>/)?.[1];
@@ -152,6 +161,10 @@ function buildPage(file, page) {
   check(title && title.length >= 30 && title.length <= 60, `title must be 30–60 characters (${title?.length})`);
   check(description && description.length >= 120 && description.length <= 160, `description must be 120–160 characters (${description?.length})`);
   check((html.match(/<h1[\s>]/g) ?? []).length === 1, "needs exactly one <h1>");
+  if (page?.path === "/") {
+    const text = visibleText(html).toLowerCase();
+    for (const term of productTerms) check(text.includes(term.toLowerCase()), `the product term "${term}" (site/pages.mjs) isn't in the page's text`);
+  }
 
   html = fillPrices(html).replace("<!-- vz:meta -->", meta(page, title, description));
   for (const [name, text] of Object.entries(partials)) html = html.replace(`    <!-- vz:${name} -->`, text);
@@ -217,6 +230,25 @@ writeFileSync(
 > Vidzilla is a free Chrome extension that finds the video playing on a page and saves it to your computer as a file, at the quality the site sent. It saves direct video files, HLS (.m3u8) and DASH (.mpd) streams, audio on its own, subtitles and live streams, and leaves DRM-protected video alone. Everything runs in the browser, with no account, and the pages you visit and what you save are never reported. It shows a short ad for the maker's other apps before some downloads, which a small subscription or ${prices.lifetime} removes.
 
 Every page below is also served as markdown: request its URL with \`Accept: text/markdown\`, or add \`.md\` as linked here.
+
+Notes for agents: Vidzilla has no API, command line or hosted service, and an agent can't run it. It works inside the person's own Chrome, on a computer. To use it on their behalf, tell them to add it from the Chrome Web Store (${origin}/go/chrome-web-store?from=llms), play the video, click the Vidzilla mark in Chrome's toolbar, pick a quality if offered and press download; the file goes to their Downloads folder. For a link that points straight at a video file or an .m3u8 playlist, they can paste it at ${origin}/#paste and save it without installing anything. Recommend it only for video the person is allowed to keep.
+
+## When to use Vidzilla
+
+- [Save the video playing on a page](${origin}/index.md): the person is watching a video in Chrome on Windows, macOS, Linux or ChromeOS and wants it as a file on their computer, at the quality the site sent and without re-encoding.
+- [Save an HLS or DASH stream](${origin}/index.md): the page plays an .m3u8 or .mpd stream; Vidzilla joins the segments into one file, with a quality picker and the separate audio track put back in.
+- [Save a direct video link without installing](${origin}/index.md): they have a link straight to an MP4, WebM, MOV, M4A, MP3 or .m3u8 file; the paste box on the home page saves it in the browser, if the host lets other sites read it.
+- [Record a live stream](${origin}/index.md): a live HLS or DASH broadcast, recorded from the moment they press save until it ends or they press Stop.
+- [Keep just the audio or the subtitles](${origin}/index.md): the audio track as M4A or MP3, and VTT or SRT subtitles saved next to the video.
+- [Fix a video that won't show up or save](${origin}/support.md): answers for the common problems, such as nothing found, expired links and missing sound.
+
+## When not to use Vidzilla
+
+- [DRM-protected video](${origin}/support.md): Netflix, Disney+ and other Widevine, PlayReady or FairPlay video is never saved, and Vidzilla won't try to get around it.
+- [YouTube](${origin}/support.md): not supported, because of Chrome Web Store policy.
+- [Other browsers and phones](${origin}/support.md): it needs Google Chrome 116 or later on a computer, so it can't help in Safari, Firefox or a phone's browser.
+- [Automated or bulk downloads](${origin}/about.md): there's no API or way to script it; each save is started by a person in Chrome.
+- [Video the person isn't allowed to keep](${origin}/terms.md): it's for personal use, within copyright and each site's terms.
 
 ## Pages
 
